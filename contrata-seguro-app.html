@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contrata Seguro — Consulta Judicial Laboral</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --azul:#1A4FA0;--azul-m:#3B72D4;--azul-c:#E8F0FC;
+  --oro:#C8972A;--oro-c:#FDF3DC;
+  --rojo:#C0392B;--rojo-c:#FDECEA;
+  --verde:#1A7A4A;--verde-c:#E8F8EE;
+  --gris-100:#F0EFEB;--gris-200:#E0DED8;--gris-500:#8A8880;--gris-900:#1C1B18;
+  --bg:#F4F3EF;--blanco:#FDFCFA;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--gris-900);min-height:100vh;}
+
+/* HEADER */
+header{background:var(--azul);padding:14px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:white;letter-spacing:-0.5px;}
+.logo span{color:#FDF3DC;}
+.header-right{display:flex;align-items:center;gap:12px;}
+.badge-online{font-size:11px;padding:4px 10px;border-radius:20px;background:rgba(26,122,74,0.3);color:#A8EBC4;border:1px solid rgba(26,122,74,0.4);}
+
+/* CONTAINER */
+.container{max-width:900px;margin:0 auto;padding:28px 20px;}
+
+/* HERO */
+.hero{text-align:center;padding:40px 20px 32px;}
+.hero h1{font-family:'Fraunces',serif;font-size:36px;font-weight:700;color:var(--azul);margin-bottom:10px;letter-spacing:-0.5px;line-height:1.2;}
+.hero p{font-size:15px;color:var(--gris-500);max-width:480px;margin:0 auto;line-height:1.6;}
+
+/* SEARCH */
+.search-card{background:var(--blanco);border:1px solid var(--gris-200);border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+.search-row{display:flex;gap:10px;flex-wrap:wrap;}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:180px;}
+.field label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:1px;color:var(--gris-500);}
+.field input{padding:11px 14px;border:1px solid var(--gris-200);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--gris-100);color:var(--gris-900);outline:none;transition:all 0.15s;}
+.field input:focus{border-color:var(--azul);background:white;box-shadow:0 0 0 3px rgba(26,79,160,0.08);}
+.btn{padding:11px 22px;border-radius:8px;font-size:14px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;border:none;transition:all 0.15s;align-self:flex-end;}
+.btn-primary{background:var(--azul);color:white;}
+.btn-primary:hover{background:var(--azul-m);}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed;}
+.btn-secondary{background:white;border:1px solid var(--gris-200);color:var(--gris-900);}
+.btn-secondary:hover{background:var(--gris-100);}
+
+/* FUENTES */
+.fuentes{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.fuente-tag{font-size:12px;padding:4px 10px;border-radius:20px;background:var(--azul-c);color:var(--azul);font-weight:500;}
+
+/* PROGRESS */
+.progress-card{background:var(--blanco);border:1px solid var(--gris-200);border-radius:16px;padding:20px;margin-bottom:20px;display:none;}
+.prog-titulo{font-size:14px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.spinner{width:16px;height:16px;border:2px solid var(--azul-c);border-top-color:var(--azul);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.prog-bar-bg{background:var(--gris-100);border-radius:4px;height:5px;margin-bottom:8px;}
+.prog-bar{height:5px;background:var(--azul);border-radius:4px;width:0%;transition:width 0.5s ease;}
+.prog-sub{font-size:12px;color:var(--gris-500);}
+
+/* RESULTADOS */
+.resultados-section{display:none;}
+.res-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.res-titulo{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--gris-900);}
+.metricas{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+.metrica{background:var(--blanco);border:1px solid var(--gris-200);border-radius:12px;padding:14px;text-align:center;}
+.metrica-val{font-family:'Fraunces',serif;font-size:30px;font-weight:700;line-height:1;margin-bottom:3px;}
+.metrica-val.r{color:var(--rojo);} .metrica-val.g{color:var(--verde);} .metrica-val.n{color:var(--gris-900);}
+.metrica-label{font-size:12px;color:var(--gris-500);}
+.alerta{background:#FFF8ED;border:1px solid #F0C070;border-radius:10px;padding:12px 16px;font-size:13px;color:#92600A;margin-bottom:14px;display:flex;gap:8px;}
+.causa-card{background:var(--blanco);border:1px solid var(--gris-200);border-left:3px solid var(--rojo);border-radius:12px;padding:18px;margin-bottom:12px;transition:box-shadow 0.15s;}
+.causa-card:hover{box-shadow:0 4px 14px rgba(0,0,0,0.07);}
+.causa-card.archivada{border-left-color:var(--gris-200);opacity:0.8;}
+.causa-caratula{font-size:13px;font-weight:500;color:var(--gris-900);margin-bottom:10px;line-height:1.4;}
+.causa-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;}
+.causa-field{font-size:12px;color:var(--gris-500);}
+.causa-field b{color:var(--gris-900);font-weight:500;display:block;}
+.badge{display:inline-block;font-size:10px;font-weight:500;padding:2px 9px;border-radius:20px;margin-left:6px;}
+.badge-activa{background:var(--rojo-c);color:var(--rojo);}
+.badge-archivada{background:var(--gris-100);color:var(--gris-500);}
+.badge-fuente{background:var(--azul-c);color:var(--azul);}
+.sin-resultados{background:var(--blanco);border:1px solid var(--gris-200);border-radius:12px;padding:48px;text-align:center;color:var(--gris-500);}
+.sin-resultados-icon{font-size:48px;margin-bottom:12px;}
+.disclaimer{font-size:11px;color:var(--gris-500);border-top:1px solid var(--gris-200);padding-top:12px;margin-top:8px;line-height:1.6;}
+
+/* ERROR */
+.error-card{background:var(--rojo-c);border:1px solid #F0C0C0;border-radius:10px;padding:14px 16px;font-size:13px;color:var(--rojo);margin-bottom:14px;display:none;}
+
+@media(max-width:600px){
+  .metricas{grid-template-columns:1fr 1fr;}
+  .causa-grid{grid-template-columns:1fr;}
+  header{padding:12px 16px;}
+  .hero h1{font-size:26px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">contrata<span>seguro</span></div>
+  <div class="header-right">
+    <div class="badge-online">● API Online</div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="hero">
+    <h1>Consultá antecedentes<br>laborales en segundos</h1>
+    <p>Buscamos en los 46 Tribunales de Trabajo del SCBA (Provincia de Buenos Aires) y el Poder Judicial de la Nación (Capital Federal).</p>
+  </div>
+
+  <!-- BÚSQUEDA -->
+  <div class="search-card">
+    <div class="search-row">
+      <div class="field" style="flex:2">
+        <label>Apellido y nombre</label>
+        <input type="text" id="inp-nombre" placeholder="Ej: MOSTEYRO ANDREA VIVIANA" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>CUIL (opcional)</label>
+        <input type="text" id="inp-cuil" placeholder="27-20510558-7">
+      </div>
+      <button class="btn btn-primary" id="btn-buscar" onclick="iniciarBusqueda()">Buscar →</button>
+    </div>
+    <div class="fuentes">
+      <span class="fuente-tag">✓ SCBA — 46 Tribunales Prov. Bs.As.</span>
+      <span class="fuente-tag">✓ PJN — Capital Federal</span>
+    </div>
+  </div>
+
+  <!-- ERROR -->
+  <div class="error-card" id="error-card"></div>
+
+  <!-- PROGRESO -->
+  <div class="progress-card" id="progress-card">
+    <div class="prog-titulo">
+      <div class="spinner"></div>
+      <span id="prog-titulo">Conectando con el servidor...</span>
+    </div>
+    <div class="prog-bar-bg"><div class="prog-bar" id="prog-bar"></div></div>
+    <div class="prog-sub" id="prog-sub">Consultando SCBA y PJN simultáneamente...</div>
+  </div>
+
+  <!-- RESULTADOS -->
+  <div class="resultados-section" id="resultados-section">
+    <div class="res-header">
+      <div class="res-titulo" id="res-titulo">Resultados</div>
+      <button class="btn btn-secondary" onclick="exportarJSON()">Exportar JSON</button>
+    </div>
+    <div class="metricas" id="metricas"></div>
+    <div id="alerta-banner"></div>
+    <div id="causas-list"></div>
+    <div class="disclaimer" id="disclaimer"></div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const API_URL = 'https://web-production-46da7.up.railway.app';
+let resultadoGlobal = null;
+let nombreBusqueda = '';
+
+// Enter para buscar
+document.getElementById('inp-nombre').addEventListener('keydown', e => {
+  if (e.key === 'Enter') iniciarBusqueda();
+});
+
+// ── BUSCAR ───────────────────────────────────────────────────
+async function iniciarBusqueda() {
+  nombreBusqueda = document.getElementById('inp-nombre').value.trim().toUpperCase();
+  if (!nombreBusqueda) { alert('Ingresá un nombre para buscar'); return; }
+
+  // Reset UI
+  document.getElementById('btn-buscar').disabled = true;
+  document.getElementById('error-card').style.display = 'none';
+  document.getElementById('resultados-section').style.display = 'none';
+  document.getElementById('progress-card').style.display = 'block';
+  
+  // Animación de progreso
+  let pct = 0;
+  const intervalo = setInterval(() => {
+    pct = Math.min(pct + 2, 90);
+    document.getElementById('prog-bar').style.width = pct + '%';
+    if (pct < 30) document.getElementById('prog-sub').textContent = 'Consultando SCBA — Provincia de Buenos Aires...';
+    else if (pct < 60) document.getElementById('prog-sub').textContent = 'Consultando 46 Tribunales de Trabajo...';
+    else document.getElementById('prog-sub').textContent = 'Consultando PJN — Capital Federal...';
+  }, 1500);
+
+  try {
+    document.getElementById('prog-titulo').textContent = `Buscando "${nombreBusqueda}"...`;
+    
+    const resp = await fetch(`${API_URL}/buscar?nombre=${encodeURIComponent(nombreBusqueda)}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(310000) // 5 min timeout
+    });
+
+    clearInterval(intervalo);
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({error: `Error HTTP ${resp.status}`}));
+      throw new Error(err.error || `Error ${resp.status}`);
+    }
+
+    resultadoGlobal = await resp.json();
+    
+    document.getElementById('prog-bar').style.width = '100%';
+    document.getElementById('prog-titulo').textContent = `Completado — ${resultadoGlobal.total || resultadoGlobal.total_causas || 0} causa(s) encontrada(s)`;
+    
+    setTimeout(() => {
+      document.getElementById('progress-card').style.display = 'none';
+      mostrarResultados(resultadoGlobal);
+    }, 600);
+
+  } catch (err) {
+    clearInterval(intervalo);
+    document.getElementById('progress-card').style.display = 'none';
+    
+    let msg = err.message;
+    if (err.name === 'TimeoutError') msg = 'La búsqueda tardó demasiado. Intentá de nuevo.';
+    if (err.message.includes('Failed to fetch')) msg = 'No se pudo conectar con el servidor. Verificá tu conexión.';
+    
+    const errCard = document.getElementById('error-card');
+    errCard.textContent = '⚠ ' + msg;
+    errCard.style.display = 'block';
+  }
+  
+  document.getElementById('btn-buscar').disabled = false;
+}
+
+// ── MOSTRAR RESULTADOS ────────────────────────────────────────
+function mostrarResultados(data) {
+  const causas = data.causas || [];
+  const total = data.total || data.total_causas || causas.length;
+  const scba = data.causas_scba || causas.filter(c=>c.fuente==='SCBA').length;
+  const pjn = data.causas_pjn || causas.filter(c=>c.fuente==='PJN').length;
+  const activas = causas.filter(c =>
+    (c.estado||'').toLowerCase().includes('despacho') ||
+    (c.ultima_actuacion||'').includes('2025') ||
+    (c.ultima_actuacion||'').includes('2026')
+  ).length;
+
+  document.getElementById('res-titulo').textContent = `Resultados — ${nombreBusqueda}`;
+
+  // Métricas
+  document.getElementById('metricas').innerHTML = `
+    <div class="metrica">
+      <div class="metrica-val ${total>0?'r':'g'}">${total}</div>
+      <div class="metrica-label">Total causas</div>
+    </div>
+    <div class="metrica">
+      <div class="metrica-val ${activas>0?'r':'g'}">${activas}</div>
+      <div class="metrica-label">Causas activas</div>
+    </div>
+    <div class="metrica">
+      <div class="metrica-val n">SCBA ${scba} · PJN ${pjn}</div>
+      <div class="metrica-label">Por fuente</div>
+    </div>
+  `;
+
+  // Alerta
+  document.getElementById('alerta-banner').innerHTML = total > 0
+    ? `<div class="alerta">⚠ Esta persona registra <strong>${total} causa(s)</strong> laboral(es). Se recomienda análisis detallado antes de proceder con la contratación.</div>`
+    : '';
+
+  // Causas
+  const lista = document.getElementById('causas-list');
+  if (causas.length === 0) {
+    lista.innerHTML = `
+      <div class="sin-resultados">
+        <div class="sin-resultados-icon">✓</div>
+        <strong>Sin antecedentes laborales encontrados</strong><br><br>
+        No se registran causas en los Tribunales de Trabajo del SCBA ni en el PJN de Capital Federal.
+      </div>`;
+  } else {
+    lista.innerHTML = causas.map(c => {
+      const activa = (c.estado||'').toLowerCase().includes('despacho') ||
+                     (c.ultima_actuacion||'').includes('2026') ||
+                     (c.ultima_actuacion||'').includes('2025');
+      return `
+      <div class="causa-card ${activa?'':'archivada'}">
+        <div class="causa-caratula">
+          ${c.caratula}
+          <span class="badge ${activa?'badge-activa':'badge-archivada'}">${c.estado||'Ver detalle'}</span>
+          <span class="badge badge-fuente">${c.fuente||'SCBA'}</span>
+        </div>
+        <div class="causa-grid">
+          ${c.expediente?`<div class="causa-field"><b>Expediente</b>${c.expediente}</div>`:''}
+          ${c.juzgado?`<div class="causa-field"><b>Juzgado</b>${c.juzgado}</div>`:''}
+          ${c.fecha_inicio?`<div class="causa-field"><b>Inicio</b>${c.fecha_inicio}</div>`:''}
+          ${c.ultima_actuacion?`<div class="causa-field"><b>Última actuación</b>${c.ultima_actuacion}</div>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('disclaimer').textContent =
+    `Datos de fuentes públicas del SCBA y PJN. Consulta realizada el ${new Date().toLocaleString('es-AR')}. Esta información debe usarse como elemento de análisis y no como único criterio de decisión.`;
+
+  document.getElementById('resultados-section').style.display = 'block';
+  document.getElementById('resultados-section').scrollIntoView({behavior:'smooth'});
+}
+
+// ── EXPORTAR ─────────────────────────────────────────────────
+function exportarJSON() {
+  if (!resultadoGlobal) return;
+  const data = {...resultadoGlobal, nombre: nombreBusqueda, fecha_consulta: new Date().toISOString()};
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `contrata-seguro-${nombreBusqueda.replace(/\s+/g,'-')}-${Date.now()}.json`;
+  a.click();
+}
+</script>
+</body>
+</html>
