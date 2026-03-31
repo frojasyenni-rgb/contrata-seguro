@@ -440,6 +440,12 @@ async function login() {
     alert.textContent = 'Email o contraseña incorrectos';
   } else {
     closeModal();
+    // Si había un pago pendiente, ejecutarlo
+    if (window._pendingPlan) {
+      const plan = window._pendingPlan;
+      window._pendingPlan = null;
+      setTimeout(() => pagar(plan), 500);
+    }
   }
 }
 
@@ -468,8 +474,7 @@ async function registro() {
     alert.textContent = error.message.includes('already') ? 'Este email ya está registrado' : error.message;
   } else {
     alert.className = 'alert success';
-    alert.textContent = 'Cuenta creada. Revisá tu email para confirmar.';
-    setTimeout(closeModal, 2000);
+    alert.textContent = '¡Cuenta creada! Te enviamos un email de confirmación. Una vez confirmado podés iniciar sesión.';
   }
 }
 
@@ -739,7 +744,12 @@ async function guardarCuenta() {
 // PAGOS
 // ══════════════════════════════════════════════════════════
 async function pagar(planKey) {
-  if (!usuario) { showModal('login'); return; }
+  if (!usuario) {
+    showModal('login');
+    // Guardar el plan para después del login
+    window._pendingPlan = planKey;
+    return;
+  }
 
   const token = (await sb?.auth.getSession())?.data.session?.access_token;
   if (!token) { showModal('login'); return; }
@@ -825,6 +835,25 @@ if (urlParams.get('pago') === 'ok') {
     }
   }, 1000);
 }
+
+// Manejar confirmación de email via URL hash
+(function() {
+  const hash = window.location.hash;
+  if (hash.includes('access_token') || hash.includes('type=signup') || hash.includes('type=recovery')) {
+    // Supabase maneja el token automáticamente, solo redirigir limpio
+    if (sb) {
+      sb.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          window.location.hash = '';
+          showPage('inicio');
+        }
+      });
+    }
+  }
+  if (window.location.hash.includes('error=')) {
+    window.location.hash = '';
+  }
+})();
 </script>
 </body>
 </html>
