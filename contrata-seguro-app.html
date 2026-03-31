@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Contrata Seguro — Consulta Judicial Laboral</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://sdk.mercadopago.com/js/v2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root {
+:root{
   --azul:#1A4FA0;--azul-m:#3B72D4;--azul-c:#E8F0FC;
   --oro:#C8972A;--oro-c:#FDF3DC;
   --rojo:#C0392B;--rojo-c:#FDECEA;
@@ -18,273 +20,604 @@
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--gris-900);min-height:100vh;}
 
 /* HEADER */
-header{background:var(--azul);padding:14px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
-.logo{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:white;letter-spacing:-0.5px;}
+header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:white;}
 .logo span{color:#FDF3DC;}
-.header-right{display:flex;align-items:center;gap:12px;}
-.badge-online{font-size:11px;padding:4px 10px;border-radius:20px;background:rgba(26,122,74,0.3);color:#A8EBC4;border:1px solid rgba(26,122,74,0.4);}
+.header-nav{display:flex;align-items:center;gap:10px;}
+.nav-btn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all 0.15s;}
+.nav-btn-outline{background:rgba(255,255,255,0.1);color:white;border:1px solid rgba(255,255,255,0.2);}
+.nav-btn-outline:hover{background:rgba(255,255,255,0.2);}
+.nav-btn-solid{background:white;color:var(--azul);}
+.nav-btn-solid:hover{background:#F0F0F0;}
+.creditos-badge{font-size:12px;padding:5px 10px;background:rgba(255,255,255,0.15);color:white;border-radius:20px;}
 
-/* CONTAINER */
-.container{max-width:900px;margin:0 auto;padding:28px 20px;}
+/* PAGES */
+.page{display:none;} .page.active{display:block;}
+.container{max-width:920px;margin:0 auto;padding:28px 20px;}
 
 /* HERO */
-.hero{text-align:center;padding:40px 20px 32px;}
-.hero h1{font-family:'Fraunces',serif;font-size:36px;font-weight:700;color:var(--azul);margin-bottom:10px;letter-spacing:-0.5px;line-height:1.2;}
-.hero p{font-size:15px;color:var(--gris-500);max-width:480px;margin:0 auto;line-height:1.6;}
+.hero{text-align:center;padding:48px 20px 32px;}
+.hero h1{font-family:'Fraunces',serif;font-size:38px;font-weight:700;color:var(--azul);margin-bottom:10px;letter-spacing:-0.5px;}
+.hero p{font-size:15px;color:var(--gris-500);max-width:500px;margin:0 auto;line-height:1.6;}
 
-/* SEARCH */
-.search-card{background:var(--blanco);border:1px solid var(--gris-200);border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
-.search-row{display:flex;gap:10px;flex-wrap:wrap;}
-.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:180px;}
+/* CARDS */
+.card{background:var(--blanco);border:1px solid var(--gris-200);border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+.card-title{font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--azul);margin-bottom:14px;}
+
+/* FORM */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
 .field label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:1px;color:var(--gris-500);}
 .field input{padding:11px 14px;border:1px solid var(--gris-200);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;background:var(--gris-100);color:var(--gris-900);outline:none;transition:all 0.15s;}
 .field input:focus{border-color:var(--azul);background:white;box-shadow:0 0 0 3px rgba(26,79,160,0.08);}
-.btn{padding:11px 22px;border-radius:8px;font-size:14px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;border:none;transition:all 0.15s;align-self:flex-end;}
+.row{display:flex;gap:10px;}
+.row .field{flex:1;}
+
+/* BUTTONS */
+.btn{padding:11px 22px;border-radius:8px;font-size:14px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;border:none;transition:all 0.15s;width:100%;margin-top:4px;}
 .btn-primary{background:var(--azul);color:white;}
 .btn-primary:hover{background:var(--azul-m);}
 .btn-primary:disabled{opacity:0.5;cursor:not-allowed;}
-.btn-secondary{background:white;border:1px solid var(--gris-200);color:var(--gris-900);}
-.btn-secondary:hover{background:var(--gris-100);}
+.btn-secondary{background:var(--gris-100);color:var(--gris-900);border:1px solid var(--gris-200);}
+.btn-secondary:hover{background:var(--gris-200);}
+.btn-success{background:var(--verde);color:white;}
+.btn-sm{padding:7px 14px;font-size:13px;width:auto;}
 
-/* FUENTES */
-.fuentes{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+/* SEARCH */
+.search-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.search-row .field{flex:2;min-width:180px;margin-bottom:0;}
+.search-row .field:last-of-type{flex:1;min-width:140px;}
+.fuentes{display:flex;gap:8px;flex-wrap:wrap;}
 .fuente-tag{font-size:12px;padding:4px 10px;border-radius:20px;background:var(--azul-c);color:var(--azul);font-weight:500;}
 
 /* PROGRESS */
-.progress-card{background:var(--blanco);border:1px solid var(--gris-200);border-radius:16px;padding:20px;margin-bottom:20px;display:none;}
-.prog-titulo{font-size:14px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
-.spinner{width:16px;height:16px;border:2px solid var(--azul-c);border-top-color:var(--azul);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;}
+.progress-card{display:none;}
+.spinner{width:16px;height:16px;border:2px solid var(--azul-c);border-top-color:var(--azul);border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block;margin-right:8px;}
 @keyframes spin{to{transform:rotate(360deg)}}
-.prog-bar-bg{background:var(--gris-100);border-radius:4px;height:5px;margin-bottom:8px;}
-.prog-bar{height:5px;background:var(--azul);border-radius:4px;width:0%;transition:width 0.5s ease;}
-.prog-sub{font-size:12px;color:var(--gris-500);}
+.prog-bar-bg{background:var(--gris-100);border-radius:4px;height:5px;margin:10px 0;}
+.prog-bar{height:5px;background:var(--azul);border-radius:4px;transition:width 0.5s ease;}
 
 /* RESULTADOS */
-.resultados-section{display:none;}
-.res-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
-.res-titulo{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--gris-900);}
-.metricas{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
-.metrica{background:var(--blanco);border:1px solid var(--gris-200);border-radius:12px;padding:14px;text-align:center;}
-.metrica-val{font-family:'Fraunces',serif;font-size:30px;font-weight:700;line-height:1;margin-bottom:3px;}
+.metricas{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+.metrica{background:var(--gris-100);border-radius:10px;padding:12px;text-align:center;}
+.metrica-val{font-family:'Fraunces',serif;font-size:28px;font-weight:700;}
 .metrica-val.r{color:var(--rojo);} .metrica-val.g{color:var(--verde);} .metrica-val.n{color:var(--gris-900);}
-.metrica-label{font-size:12px;color:var(--gris-500);}
-.alerta{background:#FFF8ED;border:1px solid #F0C070;border-radius:10px;padding:12px 16px;font-size:13px;color:#92600A;margin-bottom:14px;display:flex;gap:8px;}
-.causa-card{background:var(--blanco);border:1px solid var(--gris-200);border-left:3px solid var(--rojo);border-radius:12px;padding:18px;margin-bottom:12px;transition:box-shadow 0.15s;}
-.causa-card:hover{box-shadow:0 4px 14px rgba(0,0,0,0.07);}
-.causa-card.archivada{border-left-color:var(--gris-200);opacity:0.8;}
-.causa-caratula{font-size:13px;font-weight:500;color:var(--gris-900);margin-bottom:10px;line-height:1.4;}
-.causa-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;}
+.metrica-label{font-size:12px;color:var(--gris-500);margin-top:2px;}
+.alerta-res{background:#FFF8ED;border:1px solid #F0C070;border-radius:8px;padding:10px 14px;font-size:13px;color:#92600A;margin-bottom:12px;}
+.causa-card{border:1px solid var(--gris-200);border-left:3px solid var(--rojo);border-radius:10px;padding:16px;margin-bottom:10px;}
+.causa-card.arch{border-left-color:var(--gris-200);}
+.causa-caratula{font-size:13px;font-weight:500;margin-bottom:8px;line-height:1.4;}
+.causa-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;}
 .causa-field{font-size:12px;color:var(--gris-500);}
 .causa-field b{color:var(--gris-900);font-weight:500;display:block;}
-.badge{display:inline-block;font-size:10px;font-weight:500;padding:2px 9px;border-radius:20px;margin-left:6px;}
-.badge-activa{background:var(--rojo-c);color:var(--rojo);}
-.badge-archivada{background:var(--gris-100);color:var(--gris-500);}
-.badge-fuente{background:var(--azul-c);color:var(--azul);}
-.sin-resultados{background:var(--blanco);border:1px solid var(--gris-200);border-radius:12px;padding:48px;text-align:center;color:var(--gris-500);}
-.sin-resultados-icon{font-size:48px;margin-bottom:12px;}
+.badge{display:inline-block;font-size:10px;font-weight:500;padding:2px 8px;border-radius:20px;margin-left:6px;}
+.badge-r{background:var(--rojo-c);color:var(--rojo);}
+.badge-g{background:var(--gris-100);color:var(--gris-500);}
+.badge-a{background:var(--azul-c);color:var(--azul);}
+.sin-res{text-align:center;padding:40px;color:var(--gris-500);}
+
+/* HISTORIAL */
+.historial-item{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:1px solid var(--gris-200);border-radius:10px;margin-bottom:8px;background:var(--blanco);}
+.historial-nombre{font-size:14px;font-weight:500;}
+.historial-meta{font-size:12px;color:var(--gris-500);margin-top:2px;}
+.historial-causas{font-size:13px;font-weight:500;padding:4px 10px;border-radius:20px;}
+.historial-causas.con{background:var(--rojo-c);color:var(--rojo);}
+.historial-causas.sin{background:var(--verde-c);color:var(--verde);}
+
+/* PLANES */
+.planes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}
+.plan-card{border:1px solid var(--gris-200);border-radius:14px;padding:20px;text-align:center;background:var(--blanco);position:relative;}
+.plan-card.featured{border-color:var(--azul);border-width:2px;}
+.plan-featured-badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--azul);color:white;font-size:10px;font-weight:700;padding:3px 12px;border-radius:20px;white-space:nowrap;}
+.plan-nombre{font-family:'Fraunces',serif;font-size:17px;font-weight:700;color:var(--gris-900);margin-bottom:4px;}
+.plan-precio{font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:var(--azul);margin:10px 0 4px;}
+.plan-precio span{font-size:14px;font-weight:400;color:var(--gris-500);}
+.plan-consultas{font-size:13px;color:var(--gris-500);margin-bottom:14px;}
+.plan-feature{font-size:12px;color:var(--gris-500);margin-bottom:6px;text-align:left;}
+.plan-feature::before{content:"✓ ";color:var(--verde);font-weight:700;}
+
+/* TABS */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--gris-200);margin-bottom:20px;}
+.tab{padding:10px 18px;font-size:14px;cursor:pointer;border:none;background:none;color:var(--gris-500);font-family:'DM Sans',sans-serif;font-weight:500;border-bottom:2px solid transparent;transition:all 0.15s;}
+.tab.active{color:var(--azul);border-bottom-color:var(--azul);}
+
+/* MODAL AUTH */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;display:none;}
+.modal-overlay.open{display:flex;}
+.modal{background:white;border-radius:16px;padding:32px;width:100%;max-width:420px;margin:20px;}
+.modal-title{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--azul);margin-bottom:6px;}
+.modal-sub{font-size:13px;color:var(--gris-500);margin-bottom:20px;}
+.modal-switch{text-align:center;font-size:13px;color:var(--gris-500);margin-top:14px;}
+.modal-switch a{color:var(--azul);cursor:pointer;font-weight:500;}
+
+/* ALERTAS */
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none;}
+.alert.error{background:var(--rojo-c);color:var(--rojo);display:block;}
+.alert.success{background:var(--verde-c);color:var(--verde);display:block;}
+
+/* MISC */
 .disclaimer{font-size:11px;color:var(--gris-500);border-top:1px solid var(--gris-200);padding-top:12px;margin-top:8px;line-height:1.6;}
+.empty-state{text-align:center;padding:48px 20px;color:var(--gris-500);}
+.empty-icon{font-size:48px;margin-bottom:12px;}
+.divider{height:1px;background:var(--gris-200);margin:16px 0;}
+.link{color:var(--azul);cursor:pointer;font-weight:500;}
 
-/* ERROR */
-.error-card{background:var(--rojo-c);border:1px solid #F0C0C0;border-radius:10px;padding:14px 16px;font-size:13px;color:var(--rojo);margin-bottom:14px;display:none;}
-
-@media(max-width:600px){
+@media(max-width:640px){
+  .planes-grid{grid-template-columns:1fr;}
   .metricas{grid-template-columns:1fr 1fr;}
   .causa-grid{grid-template-columns:1fr;}
-  header{padding:12px 16px;}
   .hero h1{font-size:26px;}
+  header{padding:12px 16px;}
 }
 </style>
 </head>
 <body>
 
+<!-- HEADER -->
 <header>
   <div class="logo">contrata<span>seguro</span></div>
-  <div class="header-right">
-    <div class="badge-online">● API Online</div>
+  <div class="header-nav" id="header-nav">
+    <button class="nav-btn nav-btn-outline" onclick="showModal('login')">Iniciar sesión</button>
+    <button class="nav-btn nav-btn-solid" onclick="showModal('registro')">Registrarse gratis</button>
+  </div>
+  <div class="header-nav" id="header-user" style="display:none">
+    <div class="creditos-badge" id="creditos-badge">● 3 consultas</div>
+    <button class="nav-btn nav-btn-outline" onclick="showPage('panel')">Mi panel</button>
+    <button class="nav-btn nav-btn-outline" onclick="logout()">Salir</button>
   </div>
 </header>
 
-<div class="container">
-  <div class="hero">
-    <h1>Consultá antecedentes<br>laborales en segundos</h1>
-    <p>Buscamos en los 46 Tribunales de Trabajo del SCBA (Provincia de Buenos Aires) y el Poder Judicial de la Nación (Capital Federal).</p>
+<!-- MODAL AUTH -->
+<div class="modal-overlay" id="modal-auth">
+  <div class="modal">
+    <div id="modal-login">
+      <div class="modal-title">Bienvenido</div>
+      <div class="modal-sub">Ingresá con tu cuenta para acceder a tus consultas</div>
+      <div class="alert" id="login-alert"></div>
+      <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="tu@email.com"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••"></div>
+      <button class="btn btn-primary" onclick="login()">Ingresar</button>
+      <div class="modal-switch">¿No tenés cuenta? <a onclick="toggleModal('registro')">Registrarse gratis</a></div>
+    </div>
+    <div id="modal-registro" style="display:none">
+      <div class="modal-title">Crear cuenta</div>
+      <div class="modal-sub">3 consultas gratuitas para empezar</div>
+      <div class="alert" id="reg-alert"></div>
+      <div class="field"><label>Nombre completo</label><input type="text" id="reg-nombre" placeholder="Fernando Rojas"></div>
+      <div class="field"><label>Email</label><input type="email" id="reg-email" placeholder="tu@email.com"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres"></div>
+      <button class="btn btn-primary" onclick="registro()">Crear cuenta gratis</button>
+      <div class="modal-switch">¿Ya tenés cuenta? <a onclick="toggleModal('login')">Iniciar sesión</a></div>
+    </div>
+    <div style="text-align:right;margin-top:12px"><a class="link" style="font-size:12px" onclick="closeModal()">Cerrar</a></div>
   </div>
+</div>
 
-  <!-- BÚSQUEDA -->
-  <div class="search-card">
-    <div class="search-row">
-      <div class="field" style="flex:2">
-        <label>Apellido y nombre</label>
-        <input type="text" id="inp-nombre" placeholder="Ej: MOSTEYRO ANDREA VIVIANA" autocomplete="off">
+<!-- ══════════════════════════════════════ -->
+<!-- PAGE: INICIO -->
+<!-- ══════════════════════════════════════ -->
+<div class="page active" id="page-inicio">
+  <div class="container">
+    <div class="hero">
+      <h1>Antecedentes laborales<br>antes de contratar</h1>
+      <p>Consultá si una persona tiene juicios laborales en la Provincia de Buenos Aires y Capital Federal. Resultado en minutos.</p>
+    </div>
+
+    <!-- BÚSQUEDA -->
+    <div class="card">
+      <div class="search-row">
+        <div class="field">
+          <label>Apellido y nombre</label>
+          <input type="text" id="inp-nombre" placeholder="Ej: MOSTEYRO ANDREA VIVIANA" autocomplete="off" onkeydown="if(event.key==='Enter')iniciarBusqueda()">
+        </div>
+        <div class="field">
+          <label>CUIL (opcional)</label>
+          <input type="text" id="inp-cuil" placeholder="27-20510558-7">
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-buscar" onclick="iniciarBusqueda()" style="align-self:flex-end;margin-bottom:0;width:auto;padding:11px 22px">Buscar →</button>
       </div>
-      <div class="field">
-        <label>CUIL (opcional)</label>
-        <input type="text" id="inp-cuil" placeholder="27-20510558-7">
+      <div class="fuentes">
+        <span class="fuente-tag">✓ SCBA — 46 Tribunales Prov. Bs.As.</span>
+        <span class="fuente-tag">✓ PJN — Capital Federal</span>
       </div>
-      <button class="btn btn-primary" id="btn-buscar" onclick="iniciarBusqueda()">Buscar →</button>
     </div>
-    <div class="fuentes">
-      <span class="fuente-tag">✓ SCBA — 46 Tribunales Prov. Bs.As.</span>
-      <span class="fuente-tag">✓ PJN — Capital Federal</span>
+
+    <!-- PROGRESO -->
+    <div class="card progress-card" id="progress-card">
+      <div style="display:flex;align-items:center"><div class="spinner"></div><span id="prog-titulo" style="font-size:14px;font-weight:500">Buscando...</span></div>
+      <div class="prog-bar-bg"><div class="prog-bar" id="prog-bar" style="width:0%"></div></div>
+      <div style="font-size:12px;color:var(--gris-500)" id="prog-sub">Consultando SCBA y PJN...</div>
+    </div>
+
+    <!-- ERROR -->
+    <div class="alert error" id="buscar-error" style="display:none"></div>
+
+    <!-- RESULTADOS -->
+    <div id="resultados-section" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700" id="res-titulo">Resultados</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="descargarPDF()">Descargar PDF</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportarJSON()">Exportar JSON</button>
+        </div>
+      </div>
+      <div class="metricas" id="metricas"></div>
+      <div id="alerta-res"></div>
+      <div id="causas-list"></div>
+      <div class="disclaimer" id="disclaimer"></div>
+    </div>
+
+    <!-- PLANES PROMO (cuando no está logueado) -->
+    <div id="planes-promo" style="margin-top:32px">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--gris-900)">Planes y precios</div>
+        <div style="font-size:14px;color:var(--gris-500);margin-top:6px">Empezá con 3 consultas gratis. Sin tarjeta requerida.</div>
+      </div>
+      <div class="planes-grid">
+        <div class="plan-card">
+          <div class="plan-nombre">Básico</div>
+          <div class="plan-precio">$15.000<span>/mes</span></div>
+          <div class="plan-consultas">20 consultas por mes</div>
+          <div class="plan-feature">SCBA + PJN incluido</div>
+          <div class="plan-feature">Historial de consultas</div>
+          <div class="plan-feature">Descarga en PDF</div>
+          <button class="btn btn-secondary" style="margin-top:12px" onclick="showModal('registro')">Empezar</button>
+        </div>
+        <div class="plan-card featured">
+          <div class="plan-featured-badge">MÁS POPULAR</div>
+          <div class="plan-nombre">Profesional</div>
+          <div class="plan-precio">$45.000<span>/mes</span></div>
+          <div class="plan-consultas">Consultas ilimitadas</div>
+          <div class="plan-feature">SCBA + PJN incluido</div>
+          <div class="plan-feature">Historial completo</div>
+          <div class="plan-feature">Descarga en PDF</div>
+          <div class="plan-feature">Prioridad en soporte</div>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="showModal('registro')">Empezar</button>
+        </div>
+        <div class="plan-card">
+          <div class="plan-nombre">Por consulta</div>
+          <div class="plan-precio">$2.500<span>/c/u</span></div>
+          <div class="plan-consultas">Sin suscripción mensual</div>
+          <div class="plan-feature">SCBA + PJN incluido</div>
+          <div class="plan-feature">Historial de consultas</div>
+          <div class="plan-feature">Descarga en PDF</div>
+          <button class="btn btn-secondary" style="margin-top:12px" onclick="showModal('registro')">Comprar créditos</button>
+        </div>
+      </div>
     </div>
   </div>
+</div>
 
-  <!-- ERROR -->
-  <div class="error-card" id="error-card"></div>
-
-  <!-- PROGRESO -->
-  <div class="progress-card" id="progress-card">
-    <div class="prog-titulo">
-      <div class="spinner"></div>
-      <span id="prog-titulo">Conectando con el servidor...</span>
+<!-- ══════════════════════════════════════ -->
+<!-- PAGE: PANEL -->
+<!-- ══════════════════════════════════════ -->
+<div class="page" id="page-panel">
+  <div class="container">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <a class="link" onclick="showPage('inicio')">← Inicio</a>
     </div>
-    <div class="prog-bar-bg"><div class="prog-bar" id="prog-bar"></div></div>
-    <div class="prog-sub" id="prog-sub">Consultando SCBA y PJN simultáneamente...</div>
-  </div>
 
-  <!-- RESULTADOS -->
-  <div class="resultados-section" id="resultados-section">
-    <div class="res-header">
-      <div class="res-titulo" id="res-titulo">Resultados</div>
-      <button class="btn btn-secondary" onclick="exportarJSON()">Exportar JSON</button>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'tab-historial')">Mis consultas</button>
+      <button class="tab" onclick="switchTab(this,'tab-planes')">Planes</button>
+      <button class="tab" onclick="switchTab(this,'tab-cuenta')">Mi cuenta</button>
     </div>
-    <div class="metricas" id="metricas"></div>
-    <div id="alerta-banner"></div>
-    <div id="causas-list"></div>
-    <div class="disclaimer" id="disclaimer"></div>
+
+    <!-- TAB HISTORIAL -->
+    <div id="tab-historial">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:700">Historial de consultas</div>
+        <button class="btn btn-primary btn-sm" onclick="showPage('inicio')">Nueva consulta</button>
+      </div>
+      <div id="historial-list">
+        <div class="empty-state"><div class="empty-icon">🔍</div>Cargando historial...</div>
+      </div>
+    </div>
+
+    <!-- TAB PLANES -->
+    <div id="tab-planes" style="display:none">
+      <div id="plan-actual-banner" style="margin-bottom:20px"></div>
+      <div class="planes-grid" id="planes-pago">
+        <div class="plan-card">
+          <div class="plan-nombre">Básico</div>
+          <div class="plan-precio">$15.000<span>/mes</span></div>
+          <div class="plan-consultas">20 consultas por mes</div>
+          <div class="plan-feature">SCBA + PJN incluido</div>
+          <div class="plan-feature">Historial de consultas</div>
+          <div class="plan-feature">Descarga en PDF</div>
+          <button class="btn btn-secondary" style="margin-top:12px" onclick="pagar('basico')">Suscribirse</button>
+        </div>
+        <div class="plan-card featured">
+          <div class="plan-featured-badge">MÁS POPULAR</div>
+          <div class="plan-nombre">Profesional</div>
+          <div class="plan-precio">$45.000<span>/mes</span></div>
+          <div class="plan-consultas">Consultas ilimitadas</div>
+          <div class="plan-feature">SCBA + PJN incluido</div>
+          <div class="plan-feature">Historial completo</div>
+          <div class="plan-feature">Descarga en PDF</div>
+          <div class="plan-feature">Prioridad en soporte</div>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="pagar('profesional')">Suscribirse</button>
+        </div>
+        <div class="plan-card">
+          <div class="plan-nombre">Créditos extra</div>
+          <div class="plan-precio">$10.000<span></span></div>
+          <div class="plan-consultas">5 consultas adicionales</div>
+          <div class="plan-feature">Sin vencimiento</div>
+          <div class="plan-feature">Se acumulan</div>
+          <button class="btn btn-secondary" style="margin-top:12px" onclick="pagar('credito_5')">Comprar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB CUENTA -->
+    <div id="tab-cuenta" style="display:none">
+      <div class="card">
+        <div class="card-title">Mis datos</div>
+        <div class="alert" id="cuenta-alert"></div>
+        <div class="row">
+          <div class="field"><label>Nombre</label><input type="text" id="cuenta-nombre" placeholder="Fernando Rojas"></div>
+          <div class="field"><label>Empresa</label><input type="text" id="cuenta-empresa" placeholder="Mi Empresa S.A."></div>
+        </div>
+        <div class="field"><label>CUIT</label><input type="text" id="cuenta-cuit" placeholder="20-12345678-9"></div>
+        <div class="field"><label>Email</label><input type="email" id="cuenta-email" disabled style="opacity:0.6"></div>
+        <button class="btn btn-primary" onclick="guardarCuenta()" style="width:auto;padding:10px 24px">Guardar cambios</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════
 const API_URL = 'https://web-production-46da7.up.railway.app';
-let resultadoGlobal = null;
-let nombreBusqueda = '';
+const SUPABASE_URL = 'https://gluolujxtatwkmcufoem.supabase.co'; // Se reemplaza al configurar
+const SUPABASE_ANON_KEY = 'sb_publisable_gY7sLMt2ZEpexhkiRR7BmQ_Bsh-OT8W'; // Se reemplaza al configurar
 
-// Enter para buscar
-document.getElementById('inp-nombre').addEventListener('keydown', e => {
-  if (e.key === 'Enter') iniciarBusqueda();
-});
+let sb = null;
+let usuario = null;
+let perfil = null;
+let resultadoActual = null;
 
-// ── BUSCAR ───────────────────────────────────────────────────
+// Inicializar Supabase si está configurado
+if (true) {
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  inicializarAuth();
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
+async function inicializarAuth() {
+  if (!sb) return;
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) await setUsuario(session.user);
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (session) await setUsuario(session.user);
+    else clearUsuario();
+  });
+}
+
+async function setUsuario(user) {
+  usuario = user;
+  const { data } = await sb.from('perfiles').select('*').eq('id', user.id).single();
+  perfil = data;
+  actualizarHeaderUsuario();
+}
+
+function clearUsuario() {
+  usuario = null;
+  perfil = null;
+  document.getElementById('header-nav').style.display = 'flex';
+  document.getElementById('header-user').style.display = 'none';
+}
+
+function actualizarHeaderUsuario() {
+  if (!usuario) return;
+  document.getElementById('header-nav').style.display = 'none';
+  document.getElementById('header-user').style.display = 'flex';
+  const creditos = perfil?.creditos || 0;
+  const plan = perfil?.plan || 'gratis';
+  const txt = plan === 'profesional' ? '∞ ilimitadas' : `${creditos} consulta${creditos !== 1 ? 's' : ''}`;
+  document.getElementById('creditos-badge').textContent = `● ${txt}`;
+}
+
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const alert = document.getElementById('login-alert');
+  alert.className = 'alert';
+
+  if (!sb) {
+    // Modo demo sin Supabase
+    closeModal();
+    return;
+  }
+
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    alert.className = 'alert error';
+    alert.textContent = 'Email o contraseña incorrectos';
+  } else {
+    closeModal();
+  }
+}
+
+async function registro() {
+  const nombre = document.getElementById('reg-nombre').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const alert = document.getElementById('reg-alert');
+  alert.className = 'alert';
+
+  if (!nombre || !email || pass.length < 6) {
+    alert.className = 'alert error';
+    alert.textContent = 'Completá todos los campos (contraseña mínimo 6 caracteres)';
+    return;
+  }
+
+  if (!sb) { closeModal(); return; }
+
+  const { error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { nombre } }
+  });
+
+  if (error) {
+    alert.className = 'alert error';
+    alert.textContent = error.message.includes('already') ? 'Este email ya está registrado' : error.message;
+  } else {
+    alert.className = 'alert success';
+    alert.textContent = 'Cuenta creada. Revisá tu email para confirmar.';
+    setTimeout(closeModal, 2000);
+  }
+}
+
+async function logout() {
+  if (sb) await sb.auth.signOut();
+  clearUsuario();
+  showPage('inicio');
+}
+
+// ══════════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ══════════════════════════════════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  if (name === 'panel') cargarPanel();
+  window.scrollTo(0,0);
+}
+
+function showModal(tipo) {
+  document.getElementById('modal-auth').classList.add('open');
+  toggleModal(tipo);
+}
+function closeModal() { document.getElementById('modal-auth').classList.remove('open'); }
+function toggleModal(tipo) {
+  document.getElementById('modal-login').style.display = tipo === 'login' ? 'block' : 'none';
+  document.getElementById('modal-registro').style.display = tipo === 'registro' ? 'block' : 'none';
+}
+
+function switchTab(btn, tabId) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['tab-historial','tab-planes','tab-cuenta'].forEach(t => {
+    document.getElementById(t).style.display = t === tabId ? 'block' : 'none';
+  });
+  if (tabId === 'tab-cuenta') cargarCuenta();
+}
+
+// ══════════════════════════════════════════════════════════
+// BÚSQUEDA
+// ══════════════════════════════════════════════════════════
 async function iniciarBusqueda() {
-  nombreBusqueda = document.getElementById('inp-nombre').value.trim().toUpperCase();
-  if (!nombreBusqueda) { alert('Ingresá un nombre para buscar'); return; }
+  const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
+  if (!nombre) { alert('Ingresá un nombre para buscar'); return; }
 
-  // Reset UI
+  // Verificar créditos si está logueado
+  if (usuario && perfil) {
+    const plan = perfil.plan || 'gratis';
+    const creditos = perfil.creditos || 0;
+    const suscripcion = perfil.suscripcion_activa;
+    if (plan !== 'profesional' && !suscripcion && creditos <= 0) {
+      if (confirm('No tenés créditos disponibles. ¿Querés ver los planes?')) showPage('panel');
+      return;
+    }
+  }
+
   document.getElementById('btn-buscar').disabled = true;
-  document.getElementById('error-card').style.display = 'none';
+  document.getElementById('buscar-error').style.display = 'none';
   document.getElementById('resultados-section').style.display = 'none';
   document.getElementById('progress-card').style.display = 'block';
-  
-  // Animación de progreso
+  document.getElementById('planes-promo').style.display = 'none';
+
   let pct = 0;
-  const intervalo = setInterval(() => {
-    pct = Math.min(pct + 2, 90);
+  const intv = setInterval(() => {
+    pct = Math.min(pct + 1.5, 88);
     document.getElementById('prog-bar').style.width = pct + '%';
-    if (pct < 30) document.getElementById('prog-sub').textContent = 'Consultando SCBA — Provincia de Buenos Aires...';
+    if (pct < 30) document.getElementById('prog-sub').textContent = 'Conectando con SCBA — Provincia de Buenos Aires...';
     else if (pct < 60) document.getElementById('prog-sub').textContent = 'Consultando 46 Tribunales de Trabajo...';
     else document.getElementById('prog-sub').textContent = 'Consultando PJN — Capital Federal...';
-  }, 1500);
+  }, 2000);
+
+  document.getElementById('prog-titulo').textContent = `Buscando "${nombre}"...`;
 
   try {
-    document.getElementById('prog-titulo').textContent = `Buscando "${nombreBusqueda}"...`;
-    
-    const resp = await fetch(`${API_URL}/buscar?nombre=${encodeURIComponent(nombreBusqueda)}`, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(310000) // 5 min timeout
-    });
+    const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+    const url = token
+      ? `${API_URL}/buscar?nombre=${encodeURIComponent(nombre)}&token=${token}`
+      : `${API_URL}/buscar?nombre=${encodeURIComponent(nombre)}`;
 
-    clearInterval(intervalo);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(310000) });
+    clearInterval(intv);
 
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({error: `Error HTTP ${resp.status}`}));
+      const err = await resp.json().catch(() => ({}));
       throw new Error(err.error || `Error ${resp.status}`);
     }
 
-    resultadoGlobal = await resp.json();
-    
+    resultadoActual = await resp.json();
+    resultadoActual._nombre = nombre;
+
     document.getElementById('prog-bar').style.width = '100%';
-    document.getElementById('prog-titulo').textContent = `Completado — ${resultadoGlobal.total || resultadoGlobal.total_causas || 0} causa(s) encontrada(s)`;
-    
+    document.getElementById('prog-titulo').textContent = `Completado — ${resultadoActual.total || 0} causa(s)`;
+
     setTimeout(() => {
       document.getElementById('progress-card').style.display = 'none';
-      mostrarResultados(resultadoGlobal);
-    }, 600);
+      mostrarResultados(resultadoActual);
+      // Actualizar créditos en header
+      if (usuario) {
+        const { data } = sb?.from('perfiles').select('*').eq('id', usuario.id).single().then(r => {
+          perfil = r.data;
+          actualizarHeaderUsuario();
+        });
+      }
+    }, 500);
 
-  } catch (err) {
-    clearInterval(intervalo);
+  } catch(err) {
+    clearInterval(intv);
     document.getElementById('progress-card').style.display = 'none';
-    
     let msg = err.message;
     if (err.name === 'TimeoutError') msg = 'La búsqueda tardó demasiado. Intentá de nuevo.';
-    if (err.message.includes('Failed to fetch')) msg = 'No se pudo conectar con el servidor. Verificá tu conexión.';
-    
-    const errCard = document.getElementById('error-card');
-    errCard.textContent = '⚠ ' + msg;
-    errCard.style.display = 'block';
+    if (err.message.includes('fetch')) msg = 'No se pudo conectar con el servidor.';
+    const el = document.getElementById('buscar-error');
+    el.textContent = '⚠ ' + msg;
+    el.style.display = 'block';
   }
-  
+
   document.getElementById('btn-buscar').disabled = false;
 }
 
-// ── MOSTRAR RESULTADOS ────────────────────────────────────────
 function mostrarResultados(data) {
   const causas = data.causas || [];
-  const total = data.total || data.total_causas || causas.length;
-  const scba = data.causas_scba || causas.filter(c=>c.fuente==='SCBA').length;
-  const pjn = data.causas_pjn || causas.filter(c=>c.fuente==='PJN').length;
+  const total = data.total || causas.length;
   const activas = causas.filter(c =>
     (c.estado||'').toLowerCase().includes('despacho') ||
-    (c.ultima_actuacion||'').includes('2025') ||
-    (c.ultima_actuacion||'').includes('2026')
+    (c.ultima_actuacion||'').includes('2026') ||
+    (c.ultima_actuacion||'').includes('2025')
   ).length;
 
-  document.getElementById('res-titulo').textContent = `Resultados — ${nombreBusqueda}`;
+  document.getElementById('res-titulo').textContent = `Resultados — ${data._nombre || ''}`;
 
-  // Métricas
   document.getElementById('metricas').innerHTML = `
-    <div class="metrica">
-      <div class="metrica-val ${total>0?'r':'g'}">${total}</div>
-      <div class="metrica-label">Total causas</div>
-    </div>
-    <div class="metrica">
-      <div class="metrica-val ${activas>0?'r':'g'}">${activas}</div>
-      <div class="metrica-label">Causas activas</div>
-    </div>
-    <div class="metrica">
-      <div class="metrica-val n">SCBA ${scba} · PJN ${pjn}</div>
-      <div class="metrica-label">Por fuente</div>
-    </div>
+    <div class="metrica"><div class="metrica-val ${total>0?'r':'g'}">${total}</div><div class="metrica-label">Total causas</div></div>
+    <div class="metrica"><div class="metrica-val ${activas>0?'r':'g'}">${activas}</div><div class="metrica-label">Activas</div></div>
+    <div class="metrica"><div class="metrica-val n" style="font-size:16px">SCBA ${data.causas_scba||0} · PJN ${data.causas_pjn||0}</div><div class="metrica-label">Por fuente</div></div>
   `;
 
-  // Alerta
-  document.getElementById('alerta-banner').innerHTML = total > 0
-    ? `<div class="alerta">⚠ Esta persona registra <strong>${total} causa(s)</strong> laboral(es). Se recomienda análisis detallado antes de proceder con la contratación.</div>`
+  document.getElementById('alerta-res').innerHTML = total > 0
+    ? `<div class="alerta-res">⚠ Esta persona registra <strong>${total} causa(s)</strong> laboral(es). Analizá el detalle antes de contratar.</div>`
     : '';
 
-  // Causas
   const lista = document.getElementById('causas-list');
-  if (causas.length === 0) {
-    lista.innerHTML = `
-      <div class="sin-resultados">
-        <div class="sin-resultados-icon">✓</div>
-        <strong>Sin antecedentes laborales encontrados</strong><br><br>
-        No se registran causas en los Tribunales de Trabajo del SCBA ni en el PJN de Capital Federal.
-      </div>`;
+  if (!causas.length) {
+    lista.innerHTML = `<div class="sin-res"><div style="font-size:40px;margin-bottom:10px">✓</div><strong>Sin antecedentes laborales</strong><br><br>No se encontraron causas en los Tribunales de Trabajo del SCBA ni en el PJN.</div>`;
   } else {
     lista.innerHTML = causas.map(c => {
-      const activa = (c.estado||'').toLowerCase().includes('despacho') ||
-                     (c.ultima_actuacion||'').includes('2026') ||
-                     (c.ultima_actuacion||'').includes('2025');
-      return `
-      <div class="causa-card ${activa?'':'archivada'}">
-        <div class="causa-caratula">
-          ${c.caratula}
-          <span class="badge ${activa?'badge-activa':'badge-archivada'}">${c.estado||'Ver detalle'}</span>
-          <span class="badge badge-fuente">${c.fuente||'SCBA'}</span>
-        </div>
+      const activa = (c.estado||'').toLowerCase().includes('despacho') || (c.ultima_actuacion||'').match(/202[56]/);
+      return `<div class="causa-card ${activa?'':'arch'}">
+        <div class="causa-caratula">${c.caratula}<span class="badge ${activa?'badge-r':'badge-g'}">${c.estado||'Ver detalle'}</span><span class="badge badge-a">${c.fuente||'SCBA'}</span></div>
         <div class="causa-grid">
           ${c.expediente?`<div class="causa-field"><b>Expediente</b>${c.expediente}</div>`:''}
           ${c.juzgado?`<div class="causa-field"><b>Juzgado</b>${c.juzgado}</div>`:''}
@@ -296,21 +629,201 @@ function mostrarResultados(data) {
   }
 
   document.getElementById('disclaimer').textContent =
-    `Datos de fuentes públicas del SCBA y PJN. Consulta realizada el ${new Date().toLocaleString('es-AR')}. Esta información debe usarse como elemento de análisis y no como único criterio de decisión.`;
+    `Fuente: SCBA y PJN (datos públicos). Consulta: ${new Date().toLocaleString('es-AR')}. Usar como elemento de análisis y no como único criterio.`;
 
   document.getElementById('resultados-section').style.display = 'block';
   document.getElementById('resultados-section').scrollIntoView({behavior:'smooth'});
 }
 
-// ── EXPORTAR ─────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+// PANEL
+// ══════════════════════════════════════════════════════════
+async function cargarPanel() {
+  if (!usuario) { showPage('inicio'); showModal('login'); return; }
+
+  // Recargar perfil
+  if (sb) {
+    const { data } = await sb.from('perfiles').select('*').eq('id', usuario.id).single();
+    perfil = data;
+    actualizarHeaderUsuario();
+  }
+
+  // Banner plan actual
+  const plan = perfil?.plan || 'gratis';
+  const creditos = perfil?.creditos || 0;
+  const planNombres = {gratis:'Gratis', basico:'Básico', profesional:'Profesional'};
+  document.getElementById('plan-actual-banner').innerHTML = `
+    <div style="background:var(--azul-c);border:1px solid var(--azul-m);border-radius:10px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--azul)">Plan actual: <strong>${planNombres[plan]||plan}</strong></div>
+        <div style="font-size:12px;color:var(--gris-500);margin-top:2px">${plan==='profesional'?'Consultas ilimitadas':creditos+' consultas disponibles'}</div>
+      </div>
+      ${plan!=='profesional'?`<button class="btn btn-primary btn-sm" onclick="switchTab(document.querySelectorAll('.tab')[1],'tab-planes')">Mejorar plan</button>`:''}
+    </div>`;
+
+  cargarHistorial();
+}
+
+async function cargarHistorial() {
+  const lista = document.getElementById('historial-list');
+  if (!sb || !usuario) {
+    lista.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div>Iniciá sesión para ver tu historial</div>';
+    return;
+  }
+
+  const { data, error } = await sb.from('consultas')
+    .select('*')
+    .eq('usuario_id', usuario.id)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (!data?.length) {
+    lista.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><strong>Sin consultas aún</strong><br><br>Hacé tu primera búsqueda desde la pantalla de inicio.</div>';
+    return;
+  }
+
+  lista.innerHTML = data.map(c => {
+    const fecha = new Date(c.created_at).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="historial-item">
+      <div>
+        <div class="historial-nombre">${c.nombre_buscado}</div>
+        <div class="historial-meta">${fecha} · SCBA ${c.causas_scba||0} · PJN ${c.causas_pjn||0}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="historial-causas ${c.total_causas>0?'con':'sin'}">${c.total_causas} causa${c.total_causas!==1?'s':''}</span>
+        <button class="btn btn-secondary btn-sm" onclick="verConsulta('${c.id}')">Ver</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function verConsulta(id) {
+  if (!sb) return;
+  const { data } = await sb.from('consultas').select('*').eq('id', id).single();
+  if (!data?.resultado) return;
+  const res = data.resultado;
+  res._nombre = data.nombre_buscado;
+  resultadoActual = res;
+  showPage('inicio');
+  setTimeout(() => mostrarResultados(res), 100);
+}
+
+async function cargarCuenta() {
+  if (!perfil) return;
+  document.getElementById('cuenta-nombre').value = perfil.nombre || '';
+  document.getElementById('cuenta-empresa').value = perfil.empresa || '';
+  document.getElementById('cuenta-cuit').value = perfil.cuit || '';
+  document.getElementById('cuenta-email').value = usuario?.email || '';
+}
+
+async function guardarCuenta() {
+  if (!sb || !usuario) return;
+  const alert = document.getElementById('cuenta-alert');
+  const { error } = await sb.from('perfiles').update({
+    nombre: document.getElementById('cuenta-nombre').value,
+    empresa: document.getElementById('cuenta-empresa').value,
+    cuit: document.getElementById('cuenta-cuit').value,
+  }).eq('id', usuario.id);
+
+  if (error) {
+    alert.className = 'alert error';
+    alert.textContent = 'Error al guardar';
+  } else {
+    alert.className = 'alert success';
+    alert.textContent = 'Datos guardados correctamente';
+    setTimeout(() => alert.className = 'alert', 2000);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// PAGOS
+// ══════════════════════════════════════════════════════════
+async function pagar(planKey) {
+  if (!usuario) { showModal('login'); return; }
+
+  const token = (await sb?.auth.getSession())?.data.session?.access_token;
+  if (!token) { showModal('login'); return; }
+
+  try {
+    const resp = await fetch(`${API_URL}/pagar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ plan: planKey })
+    });
+    const data = await resp.json();
+    if (data.init_point) {
+      window.open(data.init_point, '_blank');
+    } else {
+      alert(data.error || 'Error al procesar el pago');
+    }
+  } catch(e) {
+    alert('Error de conexión: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// EXPORTAR
+// ══════════════════════════════════════════════════════════
 function exportarJSON() {
-  if (!resultadoGlobal) return;
-  const data = {...resultadoGlobal, nombre: nombreBusqueda, fecha_consulta: new Date().toISOString()};
-  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  if (!resultadoActual) return;
+  const blob = new Blob([JSON.stringify(resultadoActual, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `contrata-seguro-${nombreBusqueda.replace(/\s+/g,'-')}-${Date.now()}.json`;
+  a.download = `contrata-seguro-${(resultadoActual._nombre||'').replace(/\s+/g,'-')}-${Date.now()}.json`;
   a.click();
+}
+
+function descargarPDF() {
+  if (!resultadoActual) return;
+  // Generar PDF básico con la info
+  const causas = resultadoActual.causas || [];
+  const nombre = resultadoActual._nombre || '';
+  let html = `<html><head><meta charset="UTF-8"><style>
+    body{font-family:Arial,sans-serif;font-size:12px;padding:30px;color:#222;}
+    h1{color:#1A4FA0;font-size:18px;border-bottom:2px solid #1A4FA0;padding-bottom:8px;}
+    h2{font-size:14px;color:#333;margin-top:20px;}
+    .causa{border:1px solid #ddd;border-left:3px solid #C0392B;padding:12px;margin-bottom:10px;}
+    .meta{color:#666;font-size:11px;margin-top:4px;}
+    .ok{color:#1A7A4A;font-size:14px;margin-top:20px;}
+    .disclaimer{font-size:10px;color:#999;border-top:1px solid #eee;margin-top:30px;padding-top:10px;}
+  </style></head><body>
+    <h1>Contrata Seguro — Informe de Consulta</h1>
+    <p><strong>Persona:</strong> ${nombre}</p>
+    <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-AR')}</p>
+    <p><strong>Total causas:</strong> ${causas.length} | SCBA: ${resultadoActual.causas_scba||0} · PJN: ${resultadoActual.causas_pjn||0}</p>
+    <h2>Causas encontradas</h2>
+    ${causas.length === 0
+      ? '<p class="ok">✓ Sin antecedentes laborales encontrados en SCBA ni PJN.</p>'
+      : causas.map((c,i) => `<div class="causa">
+          <strong>[${i+1}] ${c.caratula}</strong>
+          <div class="meta">
+            ${c.expediente?`Exp: ${c.expediente} · `:''}
+            ${c.juzgado?`Jdo: ${c.juzgado} · `:''}
+            ${c.estado?`Estado: ${c.estado} · `:''}
+            ${c.fecha_inicio?`Inicio: ${c.fecha_inicio} · `:''}
+            ${c.ultima_actuacion?`Últ.act: ${c.ultima_actuacion}`:''}
+            <br>Fuente: ${c.fuente||'SCBA'}
+          </div>
+        </div>`).join('')
+    }
+    <div class="disclaimer">Datos de fuentes públicas del SCBA y PJN. Usar como elemento de análisis y no como único criterio de decisión. contrata-seguro.com.ar</div>
+  </body></html>`;
+
+  const ventana = window.open('', '_blank');
+  ventana.document.write(html);
+  ventana.document.close();
+  setTimeout(() => ventana.print(), 500);
+}
+
+// Revisar si viene de un pago aprobado
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('pago') === 'ok') {
+  setTimeout(() => {
+    if (usuario) {
+      showPage('panel');
+      alert('¡Pago aprobado! Tus créditos ya están disponibles.');
+    }
+  }, 1000);
 }
 </script>
 </body>
