@@ -210,7 +210,9 @@ def buscar_pjn():
             r0.encoding = "utf-8"
             soup0 = BeautifulSoup(r0.text, "lxml")
             vs = soup0.find("input", {"name":"javax.faces.ViewState"})
-            if not vs: print("sin ViewState"); continue
+            if not vs:
+    print(f"  PJN: CAPTCHA activo - no disponible")
+    return []
 
             r1 = s.post(f"{BASE_PJN}/scw/home.seam", timeout=25, data={
                 "javax.faces.ViewState":        vs.get("value",""),
