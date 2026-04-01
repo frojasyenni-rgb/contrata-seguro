@@ -260,7 +260,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <div class="plan-feature">SCBA + PJN incluido</div>
           <div class="plan-feature">Historial de consultas</div>
           <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:12px" onclick="showModal('registro')">Empezar</button>
+          <button class="btn btn-secondary" style="margin-top:12px" onclick="pagar('basico')">Empezar</button>
         </div>
         <div class="plan-card featured">
           <div class="plan-featured-badge">MÁS POPULAR</div>
@@ -271,7 +271,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <div class="plan-feature">Historial completo</div>
           <div class="plan-feature">Descarga en PDF</div>
           <div class="plan-feature">Prioridad en soporte</div>
-          <button class="btn btn-primary" style="margin-top:12px" onclick="showModal('registro')">Empezar</button>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="pagar('profesional')">Empezar</button>
         </div>
         <div class="plan-card">
           <div class="plan-nombre">Por consulta</div>
@@ -280,7 +280,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <div class="plan-feature">SCBA + PJN incluido</div>
           <div class="plan-feature">Historial de consultas</div>
           <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:12px" onclick="showModal('registro')">Comprar créditos</button>
+          <button class="btn btn-secondary" style="margin-top:12px" onclick="pagar('credito_5')">Comprar créditos</button>
         </div>
       </div>
     </div>
@@ -744,6 +744,13 @@ async function guardarCuenta() {
 // PAGOS
 // ══════════════════════════════════════════════════════════
 async function pagar(planKey) {
+  // Refrescar sesión antes de verificar
+  if (sb && !usuario) {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) await setUsuario(session.user);
+    } catch(e) {}
+  }
   if (!usuario) {
     showModal('login');
     // Guardar el plan para después del login
