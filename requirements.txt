@@ -1,6 +1,8 @@
-requests
-beautifulsoup4
-lxml
 flask
 flask-cors
 gunicorn
+requests
+beautifulsoup4
+lxml
+mercadopago
+supabase
