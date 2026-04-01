@@ -33,7 +33,7 @@ HDR = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
 
 def parsear_causas(html, tribunal, depto, fuente):
     if "Total Expedientes" not in html:
-        return []
+                return []
     causas = []
     soup = BeautifulSoup(html, "lxml")
 
@@ -211,8 +211,8 @@ def buscar_pjn():
             soup0 = BeautifulSoup(r0.text, "lxml")
             vs = soup0.find("input", {"name":"javax.faces.ViewState"})
             if not vs:
-    print(f"  PJN: CAPTCHA activo - no disponible")
-    return []
+                print(f"  PJN: CAPTCHA activo - no disponible")
+                return []
 
             r1 = s.post(f"{BASE_PJN}/scw/home.seam", timeout=25, data={
                 "javax.faces.ViewState":        vs.get("value",""),
