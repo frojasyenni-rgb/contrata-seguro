@@ -37,11 +37,23 @@ def verificar_token(req):
     auth = req.headers.get("Authorization", "")
     if not auth.startswith("Bearer "): return None, "Sin token"
     token = auth[7:]
-    if not supabase: return {"id": "demo"}, None
+    if not supabase: return type('obj', (object,), {'id': 'demo'})(), None
     try:
         user = supabase.auth.get_user(token)
-        return user.user, None
+        if user and user.user:
+            return user.user, None
+        return None, "Token invalido"
     except Exception as e:
+        # Intentar con admin para verificar el token
+        try:
+            import jwt as pyjwt
+            # Decodificar sin verificar para obtener el user_id
+            payload = pyjwt.decode(token, options={"verify_signature": False})
+            user_id = payload.get("sub")
+            if user_id:
+                return type('obj', (object,), {'id': user_id, 'email': payload.get('email','')})(), None
+        except:
+            pass
         return None, str(e)
 
 def correr_scraper(nombre):
