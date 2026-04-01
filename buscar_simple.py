@@ -203,59 +203,76 @@ def buscar_pjn():
     s.headers.update(HDR)
     causas_pjn = []
 
+    # ── Verificar CAPTCHA ANTES del loop ──────────────────
+    try:
+        r_test = s.get(f"{BASE_PJN}/scw/home.seam", timeout=8)
+        r_test.encoding = "utf-8"
+        if "VER DESAFÍO" in r_test.text or "desafio" in r_test.text.lower() or "challenge" in r_test.text.lower():
+            print("  PJN: CAPTCHA activo — no disponible temporalmente")
+            return []
+        soup_test = BeautifulSoup(r_test.text, "lxml")
+        vs_test = soup_test.find("input", {"name":"javax.faces.ViewState"})
+        if not vs_test:
+            print("  PJN: sin ViewState — CAPTCHA o mantenimiento")
+            return []
+        print("  PJN: acceso OK, consultando cámaras...")
+    except Exception as e:
+        print(f"  PJN: error de conexión — {e}")
+        return []
+
     for cam_val, cam_nombre in [("7","Cámara Nacional del Trabajo"), ("5","Cámara Fed. Seg. Social")]:
         print(f"  Consultando {cam_nombre}...", end=" ", flush=True)
         try:
-            r0 = s.get(f"{BASE_PJN}/scw/home.seam", timeout=20)
+            r0 = s.get(f"{BASE_PJN}/scw/home.seam", timeout=8)
             r0.encoding = "utf-8"
+            if "VER DESAFÍO" in r0.text or "desafio" in r0.text.lower():
+                print("CAPTCHA")
+                return []
             soup0 = BeautifulSoup(r0.text, "lxml")
             vs = soup0.find("input", {"name":"javax.faces.ViewState"})
             if not vs:
-                print(f"  PJN: CAPTCHA activo - no disponible")
+                print("sin ViewState")
                 return []
 
             r1 = s.post(f"{BASE_PJN}/scw/home.seam", timeout=25, data={
-                "javax.faces.ViewState":        vs.get("value",""),
-                "formPublica":                  "formPublica",
-                "formPublica:camaraPartes":      cam_val,
-                "formPublica:nomIntervParte":    APELLIDO,
-                "formPublica:tipoInterv":        "",
+                "javax.faces.ViewState":    vs.get("value",""),
+                "formPublica":              "formPublica",
+                "formPublica:camaraPartes": cam_val,
+                "formPublica:nomIntervParte": APELLIDO,
+                "formPublica:tipoInterv":   "",
                 "formPublica:buscarPorParteButton": "Buscar",
             }, headers={"Content-Type":"application/x-www-form-urlencoded"})
             r1.encoding = "utf-8"
 
             soup1 = BeautifulSoup(r1.text, "lxml")
             tabla = next((t for t in soup1.find_all("table")
-                if any(x in t.get_text().lower() for x in ["expediente","carátula","caratula"])), None)
+                         if any(x in t.get_text().lower() for x in ["expediente","carátula","caratula"])), None)
 
             if not tabla:
                 print("sin resultados"); continue
 
             nuevas = []
             for fila in tabla.find_all("tr")[1:]:
-                celdas = [c.get_text(" ",strip=True) for c in fila.find_all("td")]
+                celdas = [c.get_text(" ", strip=True) for c in fila.find_all("td")]
                 if len(celdas)<2 or len(celdas[0])<5: continue
                 nuevas.append({
                     "caratula":         celdas[0],
                     "expediente":       celdas[1] if len(celdas)>1 else "",
-                    "estado":           celdas[2] if len(celdas)>2 else "",
+                    "juzgado":          celdas[2] if len(celdas)>2 else "",
                     "fecha_inicio":     celdas[3] if len(celdas)>3 else "",
                     "ultima_actuacion": celdas[4] if len(celdas)>4 else "",
-                    "juzgado":          cam_nombre,
+                    "estado":           celdas[5] if len(celdas)>5 else "",
                     "fuente":           "PJN",
                 })
-            if nuevas:
-                causas_pjn.extend(nuevas)
-                print(f"★ {len(nuevas)} CAUSA(S)")
-            else:
-                print("sin resultados")
+            causas_pjn.extend(nuevas)
+            print(f"OK ({len(nuevas)} causas)")
+
         except Exception as e:
             print(f"error: {e}")
-        time.sleep(1)
+            time.sleep(1)
 
     print(f"\n  PJN total: {len(causas_pjn)} causa(s)")
     return causas_pjn
-
 # ══════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════
