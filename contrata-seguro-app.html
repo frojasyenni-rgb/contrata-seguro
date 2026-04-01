@@ -707,6 +707,9 @@ async function verConsulta(id) {
   const { data } = await sb.from('consultas').select('*').eq('id', id).single();
   if (!data?.resultado) return;
   const res = data.resultado;
+    res.total_causas = res.total || res.total_causas || 0;
+      res.causas_scba = (res.causas || []).filter(c => c.fuente === 'SCBA').length;
+    res.causas_pjn = (res.causas || []).filter(c => c.fuente === 'PJN').length;
   res._nombre = data.nombre_buscado;
   resultadoActual = res;
   showPage('inicio');
