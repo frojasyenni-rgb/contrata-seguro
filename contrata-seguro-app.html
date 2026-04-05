@@ -250,7 +250,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
     <div id="planes-promo" style="margin-top:32px">
       <div style="text-align:center;margin-bottom:20px">
         <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--gris-900)">Planes y precios</div>
-        <div style="font-size:14px;color:var(--gris-500);margin-top:6px">Empezá con 3 consultas gratis. Sin tarjeta requerida.</div>
+        <div style="font-size:14px;color:var(--gris-500);margin-top:6px">Consultá antecedentes laborales antes de contratar.</div>
       </div>
       <div class="planes-grid">
         <div class="plan-card">
@@ -520,15 +520,17 @@ async function iniciarBusqueda() {
   const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
   if (!nombre) { alert('Ingresá un nombre para buscar'); return; }
 
-  // Verificar créditos si está logueado
-  if (usuario && perfil) {
-    const plan = perfil.plan || 'gratis';
-    const creditos = perfil.creditos || 0;
-    const suscripcion = perfil.suscripcion_activa;
-    if (plan !== 'profesional' && !suscripcion && creditos <= 0) {
-      if (confirm('No tenés créditos disponibles. ¿Querés ver los planes?')) showPage('panel');
-      return;
-    }
+  // Requiere login y créditos para buscar
+  if (!usuario || !perfil) {
+    showModal('login');
+    return;
+  }
+  const plan = perfil.plan || 'gratis';
+  const creditos = perfil.creditos || 0;
+  const suscripcion = perfil.suscripcion_activa;
+  if (plan !== 'profesional' && !suscripcion && creditos <= 0) {
+    if (confirm('No tenés créditos disponibles. ¿Querés ver los planes?')) showPage('panel');
+    return;
   }
 
   document.getElementById('btn-buscar').disabled = true;
