@@ -105,8 +105,10 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 
 /* PLANES */
 .planes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}
-.plan-card{border:1px solid var(--gris-200);border-radius:14px;padding:20px;text-align:center;background:var(--blanco);position:relative;}
-.plan-card.featured{border-color:var(--azul);border-width:2px;}
+.planes-grid{align-items:stretch;}
+.plan-card{border:2px solid var(--gris-200);border-radius:16px;padding:28px 24px;text-align:center;background:var(--blanco);position:relative;transition:border-color .2s,box-shadow .2s;display:flex;flex-direction:column;box-sizing:border-box;}
+.plan-card.featured,.plan-card.hover-active{border-color:var(--azul);box-shadow:0 6px 24px rgba(26,79,250,.18);}
+.plan-card.hover-active .btn-secondary,.plan-card.hover-active .btn-primary{background:var(--azul);color:#fff;border-color:var(--azul);}
 .plan-featured-badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--azul);color:white;font-size:10px;font-weight:700;padding:3px 12px;border-radius:20px;white-space:nowrap;}
 .plan-nombre{font-family:'Fraunces',serif;font-size:17px;font-weight:700;color:var(--gris-900);margin-bottom:4px;}
 .plan-precio{font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:var(--azul);margin:10px 0 4px;}
@@ -252,17 +254,17 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
         <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--gris-900)">Planes y precios</div>
         <div style="font-size:14px;color:var(--gris-500);margin-top:6px">Consultá antecedentes laborales antes de contratar.</div>
       </div>
-      <div class="planes-grid">
-        <div class="plan-card">
+      <div class="planes-grid" id="planes-home">
+        <div class="plan-card" onmouseenter="hoverPlan(this)" onmouseleave="unhoverPlan(this)">
           <div class="plan-nombre">Básico</div>
           <div class="plan-precio">$15.000<span>/mes</span></div>
           <div class="plan-consultas">20 consultas por mes</div>
           <div class="plan-feature">SCBA + PJN incluido</div>
           <div class="plan-feature">Historial de consultas</div>
           <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:12px" onclick="pagar('basico')">Empezar</button>
+          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar créditos</button>
         </div>
-        <div class="plan-card featured">
+        <div class="plan-card featured" onmouseenter="hoverPlan(this)" onmouseleave="unhoverPlan(this)">
           <div class="plan-featured-badge">MÁS POPULAR</div>
           <div class="plan-nombre">Profesional</div>
           <div class="plan-precio">$45.000<span>/mes</span></div>
@@ -271,16 +273,16 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <div class="plan-feature">Historial completo</div>
           <div class="plan-feature">Descarga en PDF</div>
           <div class="plan-feature">Prioridad en soporte</div>
-          <button class="btn btn-primary" style="margin-top:12px" onclick="pagar('profesional')">Empezar</button>
+          <button class="btn btn-primary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('profesional')">Comprar créditos</button>
         </div>
-        <div class="plan-card">
+        <div class="plan-card" onmouseenter="hoverPlan(this)" onmouseleave="unhoverPlan(this)">
           <div class="plan-nombre">Por consulta</div>
           <div class="plan-precio">$2.500<span>/c/u</span></div>
           <div class="plan-consultas">Sin suscripción mensual</div>
           <div class="plan-feature">SCBA + PJN incluido</div>
           <div class="plan-feature">Historial de consultas</div>
           <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:12px" onclick="pagar('credito_5')">Comprar créditos</button>
+          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('credito_5')">Comprar créditos</button>
         </div>
       </div>
     </div>
@@ -516,6 +518,26 @@ function switchTab(btn, tabId) {
 // ══════════════════════════════════════════════════════════
 // BÚSQUEDA
 // ══════════════════════════════════════════════════════════
+// ── Hover planes ────────────────────────────────────
+function hoverPlan(card) {
+  // Quitar hover-active de todas las tarjetas del mismo grid
+  const grid = card.closest('.planes-grid');
+  if (grid) grid.querySelectorAll('.plan-card').forEach(c => c.classList.remove('hover-active'));
+  card.classList.add('hover-active');
+}
+function unhoverPlan(card) {
+  card.classList.remove('hover-active');
+  // Restaurar destacada la del medio si no hay hover activo
+  const grid = card.closest('.planes-grid');
+  if (grid) {
+    const anyHover = [...grid.querySelectorAll('.plan-card')].some(c => c.matches(':hover'));
+    if (!anyHover) {
+      const featured = grid.querySelector('.plan-card.featured');
+      // no agregar hover-active al featured en reposo, solo mantener su borde via CSS
+    }
+  }
+}
+
 async function iniciarBusqueda() {
   const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
   if (!nombre) { alert('Ingresá un nombre para buscar'); return; }
