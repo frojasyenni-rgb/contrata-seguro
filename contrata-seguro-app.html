@@ -177,13 +177,13 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <div class="modal-sub">Ingresá con tu cuenta para acceder a tus consultas</div>
       <div class="alert" id="login-alert"></div>
       <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="tu@email.com"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="login-password" placeholder="••••••••"></div>
       <button class="btn btn-primary" onclick="login()">Ingresar</button>
       <div class="modal-switch">¿No tenés cuenta? <a onclick="toggleModal('registro')">Registrarse gratis</a></div>
     </div>
     <div id="modal-registro" style="display:none">
       <div class="modal-title">Crear cuenta</div>
-      <div class="modal-sub">3 consultas gratuitas para empezar</div>
+      <div class="modal-sub">Creá tu cuenta para empezar a consultar</div>
       <div class="alert" id="reg-alert"></div>
       <div class="field"><label>Nombre completo</label><input type="text" id="reg-nombre" placeholder="Fernando Rojas"></div>
       <div class="field"><label>Email</label><input type="email" id="reg-email" placeholder="tu@email.com"></div>
@@ -403,7 +403,21 @@ async function inicializarAuth() {
 
 async function setUsuario(user) {
   usuario = user;
-  const { data } = await sb.from('perfiles').select('*').eq('id', user.id).single();
+  let { data } = await sb.from('perfiles').select('*').eq('id', user.id).single();
+  // Si no tiene perfil, crearlo automáticamente
+  if (!data) {
+    await sb.from('perfiles').upsert({
+      id: user.id,
+      email: user.email,
+      nombre: user.user_metadata?.nombre || '',
+      plan: 'gratis',
+      creditos: 0,
+      creditos_usados: 0,
+      suscripcion_activa: false
+    });
+    const result = await sb.from('perfiles').select('*').eq('id', user.id).single();
+    data = result.data;
+  }
   perfil = data;
   actualizarHeaderUsuario();
 }
@@ -467,7 +481,7 @@ async function registro() {
 
   if (!sb) { closeModal(); return; }
 
-  const { error } = await sb.auth.signUp({
+  const { data: signUpData, error } = await sb.auth.signUp({
     email, password: pass,
     options: { data: { nombre } }
   });
@@ -475,9 +489,31 @@ async function registro() {
   if (error) {
     alert.className = 'alert error';
     alert.textContent = error.message.includes('already') ? 'Este email ya está registrado' : error.message;
+    return;
+  }
+
+  // Crear perfil automáticamente
+  if (signUpData?.user) {
+    await sb.from('perfiles').upsert({
+      id: signUpData.user.id,
+      email: signUpData.user.email,
+      nombre: nombre,
+      plan: 'gratis',
+      creditos: 0,
+      creditos_usados: 0,
+      suscripcion_activa: false
+    });
+  }
+
+  // Login automático — mailer_autoconfirm está activo, no hace falta confirmar email
+  const { error: loginError } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (!loginError) {
+    alert.className = 'alert success';
+    alert.textContent = '¡Cuenta creada! Iniciando sesión...';
+    setTimeout(() => { closeModal(); }, 1200);
   } else {
     alert.className = 'alert success';
-    alert.textContent = '¡Cuenta creada! Te enviamos un email de confirmación. Una vez confirmado podés iniciar sesión.';
+    alert.textContent = '¡Cuenta creada! Ya podés iniciar sesión.';
   }
 }
 
