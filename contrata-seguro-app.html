@@ -441,35 +441,20 @@ function actualizarHeaderUsuario() {
 }
 
 function actualizarPlanBanner() {
-  const banner = document.getElementById('plan-actual-banner');
-  if (!banner || !perfil) return;
-  const plan = perfil.plan || 'gratis';
-  const creditos = perfil.creditos || 0;
-  const vence = perfil.suscripcion_vence ? new Date(perfil.suscripcion_vence).toLocaleDateString('es-AR') : null;
-
-  let html = '<div style="background:#f0f4ff;border:1px solid #c7d7fc;border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">';
-  html += '<div>';
-  if (plan === 'profesional') {
-    html += '<div style="font-weight:700;color:#1a4ffa;font-size:15px">Plan Profesional activo</div>';
-    html += '<div style="color:#555;font-size:13px;margin-top:2px">Consultas ilimitadas' + (vence ? ' · Vence ' + vence : '') + '</div>';
-  } else if (plan === 'basico') {
-    html += '<div style="font-weight:700;color:#1a4ffa;font-size:15px">Plan Básico activo</div>';
-    html += `<div style="color:#555;font-size:13px;margin-top:2px">${creditos} consultas disponibles` + (vence ? ' · Vence ' + vence : '') + '</div>';
-  } else {
-    html += '<div style="font-weight:700;color:#333;font-size:15px">Plan Gratis</div>';
-    html += `<div style="color:#555;font-size:13px;margin-top:2px">${creditos} consulta${creditos !== 1 ? 's' : ''} disponible${creditos !== 1 ? 's' : ''}</div>`;
-  }
-  html += '</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
-  if (plan !== 'profesional') {
-    html += '<button class="btn btn-primary btn-sm" onclick="pagar('profesional')">Mejorar a Profesional</button>';
-  }
-  if (plan === 'gratis') {
-    html += '<button class="btn btn-secondary btn-sm" onclick="pagar('basico')">Plan Básico</button>';
-  }
-  html += '<button class="btn btn-secondary btn-sm" onclick="pagar('credito_5')">+ Consulta ($2.500)</button>';
-  html += '</div></div>';
-  banner.innerHTML = html;
+  var b = document.getElementById('plan-actual-banner');
+  if (!b || !perfil) return;
+  var plan = perfil.plan || 'gratis';
+  var cr = perfil.creditos || 0;
+  var vence = perfil.suscripcion_vence ? new Date(perfil.suscripcion_vence).toLocaleDateString('es-AR') : '';
+  var q = String.fromCharCode(39);
+  var label = plan === 'profesional' ? 'Plan Profesional — Consultas ilimitadas' : plan === 'basico' ? 'Plan Básico — ' + cr + ' consultas' : 'Plan Gratis — ' + cr + ' consultas';
+  var btns = '';
+  if (plan !== 'profesional') btns += '<button class="btn btn-primary btn-sm" onclick="pagar(' + q + 'profesional' + q + ')">Mejorar a Profesional</button> ';
+  if (plan === 'gratis') btns += '<button class="btn btn-secondary btn-sm" onclick="pagar(' + q + 'basico' + q + ')">Plan Básico</button> ';
+  btns += '<button class="btn btn-secondary btn-sm" onclick="pagar(' + q + 'credito_5' + q + ')">+ Consulta ($2.500)</button>';
+  b.innerHTML = '<div style="background:#f0f4ff;border:1px solid #c7d7fc;border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px"><div><b style="color:#1a4ffa">' + label + '</b>' + (vence ? '<br><small style="color:#555">Vence ' + vence + '</small>' : '') + '</div><div style="display:flex;gap:8px;flex-wrap:wrap">' + btns + '</div></div>';
 }
+
 
 async function login() {
   const email = document.getElementById('login-email').value.trim();
