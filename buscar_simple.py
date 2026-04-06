@@ -139,17 +139,19 @@ def buscar_scba():
         # TipoDto=CC (radio Departamento Judicial)
         # DtoJudElegido=VALOR (select con número de departamento)
         # Aceptar=Aceptar (submit)
-        r_pos = s.post(f"{BASE_SCBA}/POSloguin.asp", data={
-            "TipoDto":       "CC",      # Radio "Departamento Judicial" — verificado
-            "DtoJudElegido": valor,     # Número del departamento — verificado
-            "Aceptar":       "Aceptar", # Botón submit — verificado
-        }, timeout=15, allow_redirects=True)
-        r_pos.encoding = "latin-1"
-
-        if depto.split()[0].lower() in r_pos.text.lower() or "Busqueda" in r_pos.url or "busqueda" in r_pos.url.lower():
-            print("OK ✓")
-        else:
-            print("(verificando...)")
+        try:
+            r_pos = s.post(f"{BASE_SCBA}/POSloguin.asp", data={
+                "TipoDto":       "CC",
+                "DtoJudElegido": valor,
+                "Aceptar":       "Aceptar",
+            }, timeout=15, allow_redirects=True)
+            r_pos.encoding = "latin-1"
+            if depto.split()[0].lower() in r_pos.text.lower() or "Busqueda" in r_pos.url:
+                print("OK ✓")
+            else:
+                print("(verificando...)")
+        except Exception:
+            print("(timeout depto — continuando)")
         time.sleep(0.5)
 
         # ── BUSCAR EN CADA TRIBUNAL ─────────────────────
@@ -158,34 +160,34 @@ def buscar_scba():
             pct = int((consultados/total_tt)*100)
             print(f"    [{pct:3d}%] {nombre_tt} {depto:<20}", end=" ", flush=True)
 
-            s.get(f"{BASE_SCBA}/Busqueda.asp", timeout=15)
-            r_bus = s.post(f"{BASE_SCBA}/Busqueda.asp", data={
-                "OpcionBusqueda":"","busca":"",
-                "JuzgadoElegido": gam,
-                "radio":          "xCa",
-                "caratula":       APELLIDO,
-                "NCausa":"","NInterno":"","Set":"","SetNovedades":"","Desde":"","Hasta":"",
-                "TipoCausa":      "Am",
-                "Buscar":         "Buscar",
-            }, timeout=20)
-            r_bus.encoding = "latin-1"
-            html = r_bus.text
-
-            # Seguir redirección si hay resultados
-            if "Total Expedientes" not in html and "No arroja" not in html:
-                if "MuestraCausas" in r_bus.url:
-                    r2 = s.get(r_bus.url, timeout=10)
-                    r2.encoding = "latin-1"
-                    html = r2.text
-
-            nuevas = parsear_causas(html, nombre_tt, depto, "SCBA")
-            if nuevas:
-                causas_scba.extend(nuevas)
-                print(f"★ {len(nuevas)} CAUSA(S)")
-            elif "No arroja" in html or "no existe" in html.lower():
-                print("sin resultados")
-            else:
-                print("sin datos")
+            try:
+                s.get(f"{BASE_SCBA}/Busqueda.asp", timeout=15)
+                r_bus = s.post(f"{BASE_SCBA}/Busqueda.asp", data={
+                    "OpcionBusqueda":"","busca":"",
+                    "JuzgadoElegido": gam,
+                    "radio":          "xCa",
+                    "caratula":       APELLIDO,
+                    "NCausa":"","NInterno":"","Set":"","SetNovedades":"","Desde":"","Hasta":"",
+                    "TipoCausa":      "Am",
+                    "Buscar":         "Buscar",
+                }, timeout=25)
+                r_bus.encoding = "latin-1"
+                html = r_bus.text
+                if "Total Expedientes" not in html and "No arroja" not in html:
+                    if "MuestraCausas" in r_bus.url:
+                        r2 = s.get(r_bus.url, timeout=10)
+                        r2.encoding = "latin-1"
+                        html = r2.text
+                nuevas = parsear_causas(html, nombre_tt, depto, "SCBA")
+                if nuevas:
+                    causas_scba.extend(nuevas)
+                    print(f"★ {len(nuevas)} CAUSA(S)")
+                elif "No arroja" in html or "no existe" in html.lower():
+                    print("sin resultados")
+                else:
+                    print("sin datos")
+            except Exception as e:
+                print(f"timeout/error — omitido")
 
             time.sleep(0.4)
 
