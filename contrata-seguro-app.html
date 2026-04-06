@@ -107,8 +107,9 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 .planes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}
 .planes-grid{align-items:stretch;}
 .plan-card{border:2px solid var(--gris-200);border-radius:16px;padding:28px 24px;text-align:center;background:var(--blanco);position:relative;transition:border-color .2s,box-shadow .2s;display:flex;flex-direction:column;box-sizing:border-box;}
-.plan-card.featured,.plan-card.hover-active{border-color:var(--azul);box-shadow:0 6px 24px rgba(26,79,250,.18);}
-.plan-card.hover-active .btn-secondary,.plan-card.hover-active .btn-primary{background:var(--azul);color:#fff;border-color:var(--azul);}
+.plan-card.featured{border-color:var(--azul);box-shadow:0 6px 24px rgba(26,79,250,.18);}
+.plan-card:hover{border-color:var(--azul) !important;box-shadow:0 6px 24px rgba(26,79,250,.18);}
+.plan-card:hover .btn-secondary,.plan-card:hover .btn-primary{background:var(--azul);color:#fff;border-color:var(--azul);}
 .plan-featured-badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--azul);color:white;font-size:10px;font-weight:700;padding:3px 12px;border-radius:20px;white-space:nowrap;}
 .plan-nombre{font-family:'Fraunces',serif;font-size:17px;font-weight:700;color:var(--gris-900);margin-bottom:4px;}
 .plan-precio{font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:var(--azul);margin:10px 0 4px;}
