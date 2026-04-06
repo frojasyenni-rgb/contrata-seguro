@@ -22,8 +22,7 @@ mp_sdk = mercadopago.SDK(MP_ACCESS_TOKEN) if MP_ACCESS_TOKEN else None
 PLANES = {
     "basico":      {"precio": 15000, "creditos": 20,   "titulo": "Plan Basico"},
     "profesional": {"precio": 45000, "creditos": 9999, "titulo": "Plan Profesional"},
-    "credito_5":   {"precio": 10000, "creditos": 5,    "titulo": "5 Consultas"},
-    "credito_10":  {"precio": 18000, "creditos": 10,   "titulo": "10 Consultas"},
+    "credito_5":   {"precio": 2500,  "creditos": 1,    "titulo": "Por consulta"},
 }
 
 def get_perfil(user_id):
