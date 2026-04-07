@@ -21,7 +21,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--gris-900)
 
 /* HEADER */
 header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
-.logo{font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:white;}
+.logo{font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:white;white-space:nowrap;}
 .logo span{color:#FDF3DC;}
 .header-nav{display:flex;align-items:center;gap:10px;}
 .nav-btn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all 0.15s;}
@@ -161,7 +161,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 
 <!-- HEADER -->
 <header>
-  <div class="logo">contrata<span>seguro</span></div>
+  <div class="logo" style="white-space:nowrap">Contrata&nbsp;<span>Seguro</span></div>
   <div class="header-nav" id="header-nav">
     <button class="nav-btn nav-btn-outline" onclick="showModal('login')">Iniciar sesión</button>
     <button class="nav-btn nav-btn-solid" onclick="showModal('registro')">Registrarse gratis</button>
@@ -463,8 +463,8 @@ function actualizarPlanBanner() {
 async function login() {
   const email = document.getElementById('login-email').value.trim();
   const pass = document.getElementById('login-password').value;
-  const alert = document.getElementById('login-alert');
-  alert.className = 'alert';
+  const alertEl = document.getElementById('login-alert');
+  alertEl.className = 'alert';
 
   if (!sb) {
     // Modo demo sin Supabase
@@ -474,8 +474,8 @@ async function login() {
 
   const { error } = await sb.auth.signInWithPassword({ email, password: pass });
   if (error) {
-    alert.className = 'alert error';
-    alert.textContent = 'Email o contraseña incorrectos';
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Email o contraseña incorrectos';
   } else {
     closeModal();
     // Si había un pago pendiente, ejecutarlo
@@ -491,12 +491,12 @@ async function registro() {
   const nombre = document.getElementById('reg-nombre').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const pass = document.getElementById('reg-pass').value;
-  const alert = document.getElementById('reg-alert');
-  alert.className = 'alert';
+  const alertEl = document.getElementById('reg-alert');
+  alertEl.className = 'alert';
 
   if (!nombre || !email || pass.length < 6) {
-    alert.className = 'alert error';
-    alert.textContent = 'Completá todos los campos (contraseña mínimo 6 caracteres)';
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Completá todos los campos (contraseña mínimo 6 caracteres)';
     return;
   }
 
@@ -508,8 +508,8 @@ async function registro() {
   });
 
   if (error) {
-    alert.className = 'alert error';
-    alert.textContent = error.message.includes('already') ? 'Este email ya está registrado' : error.message;
+    alertEl.className = 'alert error';
+    alertEl.textContent = error.message.includes('already') ? 'Este email ya está registrado' : error.message;
     return;
   }
 
@@ -529,12 +529,12 @@ async function registro() {
   // Login automático — mailer_autoconfirm está activo, no hace falta confirmar email
   const { error: loginError } = await sb.auth.signInWithPassword({ email, password: pass });
   if (!loginError) {
-    alert.className = 'alert success';
-    alert.textContent = '¡Cuenta creada! Iniciando sesión...';
+    alertEl.className = 'alert success';
+    alertEl.textContent = '¡Cuenta creada! Iniciando sesión...';
     setTimeout(() => { closeModal(); }, 1200);
   } else {
-    alert.className = 'alert success';
-    alert.textContent = '¡Cuenta creada! Ya podés iniciar sesión.';
+    alertEl.className = 'alert success';
+    alertEl.textContent = '¡Cuenta creada! Ya podés iniciar sesión.';
   }
 }
 
@@ -830,11 +830,11 @@ async function guardarCuenta() {
   }).eq('id', usuario.id);
 
   if (error) {
-    alert.className = 'alert error';
-    alert.textContent = 'Error al guardar';
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Error al guardar';
   } else {
-    alert.className = 'alert success';
-    alert.textContent = 'Datos guardados correctamente';
+    alertEl.className = 'alert success';
+    alertEl.textContent = 'Datos guardados correctamente';
     setTimeout(() => alert.className = 'alert', 2000);
   }
 }
