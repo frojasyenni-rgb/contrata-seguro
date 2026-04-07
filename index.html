@@ -233,6 +233,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <div style="display:flex;align-items:center"><div class="spinner"></div><span id="prog-titulo" style="font-size:14px;font-weight:500">Buscando...</span></div>
       <div class="prog-bar-bg"><div class="prog-bar" id="prog-bar" style="width:0%"></div></div>
       <div style="font-size:12px;color:var(--gris-500)" id="prog-sub">Consultando SCBA y PJN...</div>
+      <div style="font-size:12px;color:var(--verde);margin-top:4px;font-weight:500;min-height:16px" id="prog-detalle"></div>
     </div>
 
     <!-- ERROR -->
@@ -612,82 +613,100 @@ function unhoverPlan(card) {
 
 async function iniciarBusqueda() {
   const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
-  if (!nombre) { alert('Ingresá un nombre para buscar'); return; }
-
-  // Requiere login y créditos para buscar
-  if (!usuario || !perfil) {
-    showModal('login');
-    return;
-  }
+  if (!nombre) { alert('Ingres\u00e1 un nombre para buscar'); return; }
+  if (!usuario || !perfil) { showModal('login'); return; }
   const plan = perfil.plan || 'gratis';
   const creditos = perfil.creditos || 0;
-  const suscripcion = perfil.suscripcion_activa;
-  if (plan !== 'profesional' && !suscripcion && creditos <= 0) {
-    if (confirm('No tenés créditos disponibles. ¿Querés ver los planes?')) showPage('panel');
+  if (plan !== 'profesional' && !perfil.suscripcion_activa && creditos <= 0) {
+    if (confirm('No ten\u00e9s cr\u00e9ditos disponibles. \u00bfQuer\u00e9s ver los planes?')) showPage('panel');
     return;
   }
-
   document.getElementById('btn-buscar').disabled = true;
   document.getElementById('buscar-error').style.display = 'none';
   document.getElementById('resultados-section').style.display = 'none';
   document.getElementById('progress-card').style.display = 'block';
   document.getElementById('planes-promo').style.display = 'none';
+  document.getElementById('prog-bar').style.width = '0%';
+  document.getElementById('prog-titulo').textContent = 'Buscando "' + nombre + '"...';
+  document.getElementById('prog-sub').textContent = 'Iniciando...';
+  document.getElementById('prog-detalle').textContent = '';
 
-  let pct = 0;
-  const intv = setInterval(() => {
-    pct = Math.min(pct + 1.5, 88);
-    document.getElementById('prog-bar').style.width = pct + '%';
-    if (pct < 30) document.getElementById('prog-sub').textContent = 'Conectando con SCBA — Provincia de Buenos Aires...';
-    else if (pct < 60) document.getElementById('prog-sub').textContent = 'Consultando 46 Tribunales de Trabajo...';
-    else document.getElementById('prog-sub').textContent = 'Consultando PJN — Capital Federal...';
-  }, 2000);
+  const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+  const url = API_URL + '/buscar/stream?nombre=' + encodeURIComponent(nombre) + (token ? '&token=' + token : '');
 
-  document.getElementById('prog-titulo').textContent = `Buscando "${nombre}"...`;
-
+  let evtSource;
   try {
-    const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
-    const url = token
-      ? `${API_URL}/buscar?nombre=${encodeURIComponent(nombre)}&token=${token}`
-      : `${API_URL}/buscar?nombre=${encodeURIComponent(nombre)}`;
-
-    const resp = await fetch(url, { signal: AbortSignal.timeout(310000) });
-    clearInterval(intv);
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || `Error ${resp.status}`);
-    }
-
-    resultadoActual = await resp.json();
-    resultadoActual._nombre = nombre;
-
-    document.getElementById('prog-bar').style.width = '100%';
-    document.getElementById('prog-titulo').textContent = `Completado — ${resultadoActual.total || 0} causa(s)`;
-
-    setTimeout(() => {
-      document.getElementById('progress-card').style.display = 'none';
-      mostrarResultados(resultadoActual);
-      // Actualizar créditos en header
-      if (usuario) {
-        const { data } = sb?.from('perfiles').select('*').eq('id', usuario.id).single().then(r => {
-          perfil = r.data;
-          actualizarHeaderUsuario();
-        });
-      }
-    }, 500);
-
-  } catch(err) {
-    clearInterval(intv);
+    evtSource = new EventSource(url);
+  } catch(e) {
     document.getElementById('progress-card').style.display = 'none';
-    let msg = err.message;
-    if (err.name === 'TimeoutError') msg = 'La búsqueda tardó demasiado. Intentá de nuevo.';
-    if (err.message.includes('fetch')) msg = 'No se pudo conectar con el servidor.';
+    document.getElementById('btn-buscar').disabled = false;
     const el = document.getElementById('buscar-error');
-    el.textContent = '⚠ ' + msg;
+    el.textContent = '\u26a0 Error de conexi\u00f3n';
     el.style.display = 'block';
+    return;
   }
 
-  document.getElementById('btn-buscar').disabled = false;
+  // Timeout de seguridad: 310 segundos
+  const timeout = setTimeout(() => {
+    evtSource.close();
+    document.getElementById('progress-card').style.display = 'none';
+    document.getElementById('btn-buscar').disabled = false;
+    const el = document.getElementById('buscar-error');
+    el.textContent = '\u26a0 La b\u00fasqueda tard\u00f3 demasiado. Intent\u00e1 de nuevo.';
+    el.style.display = 'block';
+  }, 310000);
+
+  evtSource.onmessage = async (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.tipo === 'progreso') {
+        document.getElementById('prog-bar').style.width = msg.pct + '%';
+        document.getElementById('prog-titulo').textContent = msg.texto || ('Buscando "' + nombre + '"...');
+        document.getElementById('prog-sub').textContent = msg.detalle || '';
+        if (msg.causas > 0) {
+          document.getElementById('prog-detalle').textContent = '\u2605 ' + msg.causas + ' causa(s) encontrada(s)';
+        }
+      } else if (msg.tipo === 'resultado') {
+        clearTimeout(timeout);
+        evtSource.close();
+        resultadoActual = msg.resultado;
+        resultadoActual._nombre = nombre;
+        document.getElementById('prog-bar').style.width = '100%';
+        document.getElementById('prog-titulo').textContent = 'Completado \u2014 ' + (msg.resultado.total || 0) + ' causa(s)';
+        setTimeout(async () => {
+          document.getElementById('progress-card').style.display = 'none';
+          mostrarResultados(resultadoActual);
+          if (usuario && sb) {
+            const { data: dp } = await sb.from('perfiles').select('*').eq('id', usuario.id).single();
+            if (dp) { perfil = dp; actualizarHeaderUsuario(); }
+          }
+        }, 600);
+        document.getElementById('btn-buscar').disabled = false;
+      } else if (msg.tipo === 'error') {
+        clearTimeout(timeout);
+        evtSource.close();
+        document.getElementById('progress-card').style.display = 'none';
+        document.getElementById('btn-buscar').disabled = false;
+        const el = document.getElementById('buscar-error');
+        el.textContent = '\u26a0 ' + (msg.msg || 'Error en la b\u00fasqueda');
+        el.style.display = 'block';
+      } else if (msg.tipo === 'fin') {
+        clearTimeout(timeout);
+        evtSource.close();
+        document.getElementById('btn-buscar').disabled = false;
+      }
+    } catch(err) {}
+  };
+
+  evtSource.onerror = () => {
+    clearTimeout(timeout);
+    evtSource.close();
+    document.getElementById('progress-card').style.display = 'none';
+    document.getElementById('btn-buscar').disabled = false;
+    const el = document.getElementById('buscar-error');
+    el.textContent = '\u26a0 Error de conexi\u00f3n con el servidor.';
+    el.style.display = 'block';
+  };
 }
 
 function mostrarResultados(data) {
