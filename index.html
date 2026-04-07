@@ -142,6 +142,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 .alert.success{background:var(--verde-c);color:var(--verde);display:block;}
 
 /* MISC */
+.causa-card.actor{border-left-color:var(--verde) !important;background:linear-gradient(135deg,#f0fff4 0%,#e8f8ee 100%);}.badge-actor{background:#1A7A4A;color:white;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;margin-left:6px;letter-spacing:0.5px;}
 .disclaimer{font-size:11px;color:var(--gris-500);border-top:1px solid var(--gris-200);padding-top:12px;margin-top:8px;line-height:1.6;}
 .empty-state{text-align:center;padding:48px 20px;color:var(--gris-500);}
 .empty-icon{font-size:48px;margin-bottom:12px;}
@@ -690,6 +691,17 @@ async function iniciarBusqueda() {
         const el = document.getElementById('buscar-error');
         el.textContent = '\u26a0 ' + (msg.msg || 'Error en la b\u00fasqueda');
         el.style.display = 'block';
+      } else if (msg.tipo === 'pjn_pendiente') {
+        const metEl = document.getElementById('metricas');
+        if (metEl) {
+          const badge = document.createElement('div');
+          badge.className = 'metrica';
+          badge.style.cssText = 'background:#fff3cd;border:1px solid #f0c040;';
+          badge.innerHTML = '<div class="metrica-val n" style="font-size:18px">\u23f3</div><div class="metrica-label" style="color:#856404">Capital Fed.<br>En proceso</div>';
+          metEl.appendChild(badge);
+        }
+        const ar = document.getElementById('alerta-res');
+        if (ar) ar.innerHTML += '<div style="background:#fff3cd;border:1px solid #f0c040;border-radius:8px;padding:10px 14px;font-size:13px;color:#856404;margin-top:8px">\u23f3 <strong>Capital Federal en proceso:</strong> La validaci\u00f3n del sistema judicial de Capital est\u00e1 siendo completada. Te notificaremos cuando est\u00e9 lista.</div>';
       } else if (msg.tipo === 'fin') {
         clearTimeout(timeout);
         evtSource.close();
@@ -736,8 +748,8 @@ function mostrarResultados(data) {
   } else {
     lista.innerHTML = causas.map(c => {
       const activa = (c.estado||'').toLowerCase().includes('despacho') || (c.ultima_actuacion||'').match(/202[56]/);
-      return `<div class="causa-card ${activa?'':'arch'}">
-        <div class="causa-caratula">${c.caratula}<span class="badge ${activa?'badge-r':'badge-g'}">${c.estado||'Ver detalle'}</span><span class="badge badge-a">${c.fuente||'SCBA'}</span></div>
+      return `<div class="causa-card ${activa?'':'arch'} ${(()=>{const cn=(c.caratula||'').toUpperCase();const sep=cn.indexOf(' C/ ');const ap=sep>=0?cn.substring(0,sep):'';return(c.rol==='ACTOR'||(ap.length>0&&(data._nombre||data.nombre||'').toUpperCase().split(' ').filter(Boolean).some(p=>ap.includes(p))));})()?'actor':''}">
+        <div class="causa-caratula">${c.caratula}<span class="badge ${activa?'badge-r':'badge-g'}">${c.estado||'Ver detalle'}</span><span class="badge badge-a">${c.fuente||'SCBA'}</span>${(()=>{const cn=(c.caratula||'').toUpperCase();const sep=cn.indexOf(' C/ ');const ap=sep>=0?cn.substring(0,sep):'';return(c.rol==='ACTOR'||(ap.length>0&&(data._nombre||data.nombre||'').toUpperCase().split(' ').filter(Boolean).some(p=>ap.includes(p))));})()?'<span class=\"badge badge-actor\">\u2605 ACTOR</span>':''}</div>
         <div class="causa-grid">
           ${c.expediente?`<div class="causa-field"><b>Expediente</b>${c.expediente}</div>`:''}
           ${c.juzgado?`<div class="causa-field"><b>Juzgado</b>${c.juzgado}</div>`:''}
@@ -906,17 +918,31 @@ async function pagar(planKey) {
 // ══════════════════════════════════════════════════════════
 function exportarJSON() {
   if (!resultadoActual) return;
-  const blob = new Blob([JSON.stringify(resultadoActual, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `contrata-seguro-${(resultadoActual._nombre||'').replace(/\s+/g,'-')}-${Date.now()}.json`;
+  const _nb=(resultadoActual._nombre||resultadoActual.nombre||'').toUpperCase().split(' ').filter(Boolean);
+  const causasActor=(resultadoActual.causas||[]).filter(c=>{
+    if(c.rol==='ACTOR') return true;
+    const cn=(c.caratula||'').toUpperCase(); const sep=cn.indexOf(' C/ ');
+    const ap=sep>=0?cn.substring(0,sep):'';
+    return ap.length>0&&_nb.some(p=>ap.includes(p));
+  });
+  const exportData=Object.assign({},resultadoActual,{causas:causasActor,total:causasActor.length,_nota:'Solo causas donde el buscado figura como actor/demandante'});
+  const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`contrata-seguro-${(resultadoActual._nombre||'').replace(/\s+/g,'-')}-actor-${Date.now()}.json`;
   a.click();
 }
 
 function descargarPDF() {
   if (!resultadoActual) return;
   // Generar PDF básico con la info
-  const causas = resultadoActual.causas || [];
+  const _nb2=(resultadoActual._nombre||resultadoActual.nombre||'').toUpperCase().split(' ').filter(Boolean);
+  const causas=(resultadoActual.causas||[]).filter(c=>{
+    if(c.rol==='ACTOR') return true;
+    const cn=(c.caratula||'').toUpperCase(); const sep=cn.indexOf(' C/ ');
+    const ap=sep>=0?cn.substring(0,sep):'';
+    return ap.length>0&&_nb2.some(p=>ap.includes(p));
+  });
   const nombre = resultadoActual._nombre || '';
   let html = `<html><head><meta charset="UTF-8"><style>
     body{font-family:Arial,sans-serif;font-size:12px;padding:30px;color:#222;}
