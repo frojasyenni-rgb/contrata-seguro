@@ -409,24 +409,31 @@ async function inicializarAuth() {
 }
 
 async function setUsuario(user) {
+  // 1. Asignar usuario INMEDIATAMENTE y actualizar header
   usuario = user;
-  let { data } = await sb.from('perfiles').select('*').eq('id', user.id).single();
-  // Si no tiene perfil, crearlo automáticamente
-  if (!data) {
-    await sb.from('perfiles').upsert({
-      id: user.id,
-      email: user.email,
-      nombre: user.user_metadata?.nombre || '',
-      plan: 'gratis',
-      creditos: 0,
-      creditos_usados: 0,
-      suscripcion_activa: false
-    });
-    const result = await sb.from('perfiles').select('*').eq('id', user.id).single();
-    data = result.data;
+  // Perfil básico por defecto para que el header funcione sin esperar DB
+  if (!perfil) {
+    perfil = { id: user.id, email: user.email, plan: 'gratis', creditos: 0, suscripcion_activa: false };
   }
-  perfil = data;
   actualizarHeaderUsuario();
+  // 2. Cargar perfil real de Supabase en segundo plano (sin bloquear)
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('perfiles').select('*').eq('id', user.id).single();
+    if (data) {
+      perfil = data;
+      actualizarHeaderUsuario();
+    } else {
+      // Crear perfil si no existe
+      const nuevo = { id: user.id, email: user.email, nombre: user.user_metadata?.nombre || '', plan: 'gratis', creditos: 0, creditos_usados: 0, suscripcion_activa: false };
+      await sb.from('perfiles').upsert(nuevo);
+      perfil = nuevo;
+      actualizarHeaderUsuario();
+    }
+  } catch(e) {
+    console.warn('setUsuario: no se pudo cargar perfil:', e.message);
+    // El header ya funciona con el perfil básico — no es crítico
+  }
 }
 
 function clearUsuario() {
