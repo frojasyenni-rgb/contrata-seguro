@@ -471,28 +471,49 @@ function actualizarPlanBanner() {
 
 async function login() {
   const email = document.getElementById('login-email').value.trim();
-  const pass = document.getElementById('login-password').value;
+  const pass  = document.getElementById('login-password').value;
   const alertEl = document.getElementById('login-alert');
   alertEl.className = 'alert';
-
-  if (!sb) {
-    // Modo demo sin Supabase
-    closeModal();
-    return;
-  }
-
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (error) {
-    alertEl.className = 'alert error';
-    alertEl.textContent = 'Email o contraseña incorrectos';
-  } else {
-    closeModal();
-    // Si había un pago pendiente, ejecutarlo
-    if (window._pendingPlan) {
-      const plan = window._pendingPlan;
-      window._pendingPlan = null;
-      setTimeout(() => pagar(plan), 500);
+  if (!sb) { closeModal(); return; }
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) {
+      alertEl.className = 'alert error';
+      alertEl.textContent = 'Email o contraseña incorrectos';
+      return;
     }
+    // Cerrar modal PRIMERO
+    closeModal();
+    // Setear usuario y actualizar header INMEDIATAMENTE sin esperar DB
+    usuario = data.user;
+    perfil = perfil || { id: data.user.id, email: data.user.email, plan: 'gratis', creditos: 0, suscripcion_activa: false };
+    document.getElementById('header-nav').style.display = 'none';
+    document.getElementById('header-user').style.display = 'flex';
+    const creditos = perfil.creditos || 0;
+    const plan = perfil.plan || 'gratis';
+    document.getElementById('creditos-badge').textContent = plan === 'profesional' ? '\u221e ilimitadas' : creditos + ' consulta' + (creditos !== 1 ? 's' : '');
+    // Luego cargar perfil real en segundo plano
+    if (sb) {
+      sb.from('perfiles').select('*').eq('id', data.user.id).single().then(({ data: p }) => {
+        if (p) {
+          perfil = p;
+          actualizarHeaderUsuario();
+        } else {
+          sb.from('perfiles').upsert({ id: data.user.id, email: data.user.email, plan: 'gratis', creditos: 0, creditos_usados: 0, suscripcion_activa: false }).then(() => {
+            sb.from('perfiles').select('*').eq('id', data.user.id).single().then(({ data: p2 }) => { if (p2) { perfil = p2; actualizarHeaderUsuario(); }});
+          });
+        }
+      }).catch(e => console.warn('perfil load:', e.message));
+    }
+    // Si había un pago pendiente
+    if (window._pendingPlan) {
+      const plan2 = window._pendingPlan;
+      window._pendingPlan = null;
+      setTimeout(() => pagar(plan2), 500);
+    }
+  } catch(e) {
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Error de conexi\u00f3n. Intent\u00e1 de nuevo.';
   }
 }
 
