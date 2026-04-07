@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 CONTRATA SEGURO - Buscador de antecedentes laborales
-Busca en SCBA (46 tribunales, 8 departamentos) + PJN Capital Federal
-Output estructurado para streaming SSE via api.py
+SCBA (46 tribunales) + PJN Capital Federal con deteccion de CAPTCHA
 """
 import requests
 from bs4 import BeautifulSoup
@@ -31,6 +30,21 @@ BASE_SCBA = "https://mev.scba.gov.ar"
 BASE_PJN  = "https://scw.pjn.gov.ar"
 HDR = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
        "Accept":"text/html,application/xhtml+xml,*/*;q=0.8","Accept-Language":"es-AR,es;q=0.9"}
+
+# Senales que indican que el PJN rechazo la consulta por verificador no resuelto
+PJN_CAPTCHA_SIGNALS = [
+    "campo verificador",
+    "fcMsg",
+    "VER DESAFIO",
+    "VER DESAFIO",
+    "resuelva el desafio",
+    "Presione el bot",
+    "verificador",
+]
+
+def pjn_tiene_captcha(html):
+    html_lower = html.lower()
+    return any(s.lower() in html_lower for s in PJN_CAPTCHA_SIGNALS)
 
 def progreso(pct, texto, detalle="", causas=0):
     msg = {"pct": pct, "texto": texto, "detalle": detalle, "causas": causas}
@@ -112,8 +126,7 @@ def buscar_scba():
         for gam, nombre_tt in tribunales:
             consultados += 1
             pct = int(3 + (consultados / total_tt) * 60)
-            progreso(pct,
-                     f"SCBA — {depto}",
+            progreso(pct, f"SCBA — {depto}",
                      f"Tribunal del Trabajo {nombre_tt} ({consultados}/{total_tt})",
                      len(causas_scba))
             try:
@@ -135,8 +148,7 @@ def buscar_scba():
                 if nuevas:
                     causas_scba.extend(nuevas)
                     progreso(pct, f"SCBA — {depto}",
-                             f"TT {nombre_tt}: {len(nuevas)} causa(s) ★",
-                             len(causas_scba))
+                             f"TT {nombre_tt}: {len(nuevas)} causa(s) ★", len(causas_scba))
             except Exception:
                 pass
             time.sleep(0.3)
@@ -145,37 +157,52 @@ def buscar_scba():
     return causas_scba
 
 def buscar_pjn():
-    causas_pjn = []
+    """
+    Retorna (causas, estado)
+    estado: 'ok' | 'sin_resultados' | 'captcha_required' | 'error'
+    """
     try:
-        progreso(66, "PJN — Conectando...", "Capital Federal - Verificando acceso")
+        progreso(66, "Capital Federal — Conectando...", "Verificando acceso al sistema judicial")
         s = requests.Session()
         s.headers.update(HDR)
         r_test = s.get(f"{BASE_PJN}/scw/home.seam", timeout=8)
         r_test.encoding = "utf-8"
+
+        # Detectar CAPTCHA en la pagina inicial
+        if pjn_tiene_captcha(r_test.text):
+            progreso(70, "Capital Federal — Validacion requerida",
+                     "Se requiere validacion manual. Registrando para proceso interno...")
+            return [], "captcha_required"
+
         soup_test = BeautifulSoup(r_test.text, "lxml")
         vs_test = soup_test.find("input", {"name":"javax.faces.ViewState"})
         if not vs_test:
-            progreso(70, "PJN — Sin acceso", "Sin ViewState")
-            return []
-    except Exception as e:
-        progreso(70, "PJN — Error", str(e))
-        return []
+            progreso(70, "Capital Federal — Sin acceso", "Sistema en mantenimiento")
+            return [], "error"
 
+        progreso(67, "Capital Federal — Conectado", "Consultando Camara Nacional del Trabajo...")
+    except Exception as e:
+        progreso(70, "Capital Federal — Error", str(e))
+        return [], "error"
+
+    causas_pjn = []
     camaras = [
-        ("7", "CNT - Camara Nacional del Trabajo"),
-        ("5", "CFedSS - Camara Fed. Seguridad Social"),
+        ("7", "Camara Nacional del Trabajo"),
+        ("5", "Camara Fed. Seguridad Social"),
     ]
+
     for idx, (cam_val, cam_nombre) in enumerate(camaras):
-        pct_base = 67 + idx * 12
-        progreso(pct_base, f"PJN — {cam_nombre}", "Buscando causas como actor y demandado...")
+        pct_base = 68 + idx * 12
+        progreso(pct_base, f"Capital Federal — {cam_nombre}",
+                 f"Buscando '{APELLIDO}' como actor y demandado...")
         try:
             r0 = s.get(f"{BASE_PJN}/scw/home.seam", timeout=8)
             r0.encoding = "utf-8"
             soup0 = BeautifulSoup(r0.text, "lxml")
             vs = soup0.find("input", {"name":"javax.faces.ViewState"})
             if not vs:
-                progreso(pct_base+2, f"PJN — {cam_nombre}", "Sin ViewState")
                 continue
+
             r1 = s.post(f"{BASE_PJN}/scw/home.seam", timeout=25, data={
                 "javax.faces.ViewState": vs.get("value",""),
                 "formPublica": "formPublica",
@@ -185,19 +212,29 @@ def buscar_pjn():
                 "formPublica:buscarPorParteButton": "Buscar",
             }, headers={"Content-Type":"application/x-www-form-urlencoded"})
             r1.encoding = "utf-8"
+
+            # DETECCION CLAVE: verificar si el PJN rechazo por verificador
+            if pjn_tiene_captcha(r1.text):
+                progreso(pct_base+2, f"Capital Federal — {cam_nombre}",
+                         "Requiere validacion manual. Registrando...")
+                return causas_pjn, "captcha_required"
+
             soup1 = BeautifulSoup(r1.text, "lxml")
             tabla = next((t for t in soup1.find_all("table")
                           if any(x in t.get_text().lower() for x in ["expediente","caratula","car\u00e1tula"])), None)
             if not tabla:
-                progreso(pct_base+4, f"PJN — {cam_nombre}", "Sin resultados")
+                progreso(pct_base+4, f"Capital Federal — {cam_nombre}", "Sin resultados")
                 continue
+
             nuevas = []
             for fila in tabla.find_all("tr")[1:]:
                 celdas = [c.get_text(" ", strip=True) for c in fila.find_all("td")]
                 if len(celdas) < 2 or len(celdas[0]) < 5: continue
                 caratula = celdas[0]
-                partes_car = caratula.split(" c/ ") if " c/ " in caratula else caratula.split(" C/ ")
-                rol = "ACTOR" if (len(partes_car) > 0 and any(p in partes_car[0].upper() for p in FILTRAR_POR)) else "DEMANDADO"
+                cn = caratula.upper()
+                sep = cn.find(" C/ ")
+                actor_parte = cn[:sep] if sep >= 0 else ""
+                rol = "ACTOR" if (actor_parte and any(p in actor_parte for p in FILTRAR_POR)) else "DEMANDADO"
                 nuevas.append({
                     "caratula":         caratula,
                     "expediente":       celdas[1] if len(celdas)>1 else "",
@@ -209,25 +246,29 @@ def buscar_pjn():
                     "rol":              rol,
                 })
             causas_pjn.extend(nuevas)
-            progreso(pct_base+5, f"PJN — {cam_nombre}",
+            progreso(pct_base+5, f"Capital Federal — {cam_nombre}",
                      f"{len(nuevas)} causa(s) encontrada(s)", len(causas_pjn))
         except Exception as e:
-            progreso(pct_base+2, f"PJN — {cam_nombre}", f"Error: {e}")
+            progreso(pct_base+2, f"Capital Federal — {cam_nombre}", f"Error: {e}")
         time.sleep(1)
 
-    progreso(92, "PJN completado", f"{len(causas_pjn)} causa(s)", len(causas_pjn))
-    return causas_pjn
+    estado = "ok" if causas_pjn else "sin_resultados"
+    progreso(92, "Capital Federal completado", f"{len(causas_pjn)} causa(s)", len(causas_pjn))
+    return causas_pjn, estado
 
+# ── MAIN ──────────────────────────────
 progreso(1, "Iniciando busqueda...", "Preparando consulta...")
-causas_scba  = buscar_scba()
-causas_pjn   = buscar_pjn()
+causas_scba = buscar_scba()
+causas_pjn, estado_pjn = buscar_pjn()
 causas_total = causas_scba + causas_pjn
 progreso(98, "Finalizando...", f"Total: {len(causas_total)} causa(s)")
+
 resultado = {
     "nombre":      NOMBRE.upper(),
     "total":       len(causas_total),
     "causas_scba": len(causas_scba),
     "causas_pjn":  len(causas_pjn),
+    "estado_pjn":  estado_pjn,
     "causas":      causas_total,
 }
 with open("resultado.json", "w", encoding="utf-8") as f:
