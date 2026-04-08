@@ -319,28 +319,35 @@ def webhook_mp():
 
 @app.route("/login", methods=["POST"])
 def login_proxy():
-    """Proxy de login a Supabase - evita bloqueos de extensiones de browser"""
-    import requests as req_http
+    """Proxy de login a Supabase usando el cliente Python ya configurado"""
     data = request.get_json() or {}
     email = data.get("email","").strip()
     password = data.get("password","")
     if not email or not password:
         return jsonify({"error":"Email y contrasena requeridos"}), 400
-    SUPA_URL = SUPABASE_URL or os.environ.get("SUPABASE_URL","")
-    ANON_KEY = os.environ.get("SUPABASE_ANON_KEY","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdW9sdWp4dGF0d2ttY3Vmb2VtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Njk4NzAsImV4cCI6MjA5MDU0NTg3MH0.QHeYQjwCPLN9H2Ujj5wRuufGtnViAqn0kWETDxNZtFI")
+    if not supabase:
+        return jsonify({"error":"Servidor no configurado"}), 500
     try:
-        r = req_http.post(
-            SUPA_URL+"/auth/v1/token?grant_type=password",
-            headers={"apikey":ANON_KEY,"Content-Type":"application/json"},
-            json={"email":email,"password":password},
-            timeout=10
-        )
-        d = r.json()
-        if r.status_code != 200:
-            return jsonify({"error":d.get("error_description",d.get("msg","Credenciales incorrectas"))}), 401
-        return jsonify(d)
+        # Usar el cliente Supabase Python que ya tiene la URL y keys configuradas
+        result = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if not result.session:
+            return jsonify({"error":"Credenciales incorrectas"}), 401
+        return jsonify({
+            "access_token":  result.session.access_token,
+            "refresh_token": result.session.refresh_token,
+            "expires_in":    result.session.expires_in,
+            "token_type":    "bearer",
+            "user": {
+                "id":    result.user.id,
+                "email": result.user.email,
+            }
+        })
     except Exception as e:
-        return jsonify({"error":str(e)}), 500
+        msg = str(e)
+        if "Invalid login" in msg or "invalid_grant" in msg:
+            return jsonify({"error":"Email o contrasena incorrectos"}), 401
+        return jsonify({"error": msg}), 500
+
 
 if __name__ == "__main__":
     port=int(os.environ.get("PORT",5000))
