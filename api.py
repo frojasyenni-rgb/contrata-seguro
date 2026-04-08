@@ -317,6 +317,31 @@ def webhook_mp():
         supabase.table("perfiles").update(upd).eq("id",usuario_id).execute()
     return jsonify({"ok":True})
 
+@app.route("/login", methods=["POST"])
+def login_proxy():
+    """Proxy de login a Supabase - evita bloqueos de extensiones de browser"""
+    import requests as req_http
+    data = request.get_json() or {}
+    email = data.get("email","").strip()
+    password = data.get("password","")
+    if not email or not password:
+        return jsonify({"error":"Email y contrasena requeridos"}), 400
+    SUPA_URL = SUPABASE_URL or os.environ.get("SUPABASE_URL","")
+    ANON_KEY = os.environ.get("SUPABASE_ANON_KEY","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdW9sdWp4dGF0d2ttY3Vmb2VtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Njk4NzAsImV4cCI6MjA5MDU0NTg3MH0.QHeYQjwCPLN9H2Ujj5wRuufGtnViAqn0kWETDxNZtFI")
+    try:
+        r = req_http.post(
+            SUPA_URL+"/auth/v1/token?grant_type=password",
+            headers={"apikey":ANON_KEY,"Content-Type":"application/json"},
+            json={"email":email,"password":password},
+            timeout=10
+        )
+        d = r.json()
+        if r.status_code != 200:
+            return jsonify({"error":d.get("error_description",d.get("msg","Credenciales incorrectas"))}), 401
+        return jsonify(d)
+    except Exception as e:
+        return jsonify({"error":str(e)}), 500
+
 if __name__ == "__main__":
     port=int(os.environ.get("PORT",5000))
     app.run(host="0.0.0.0",port=port,threaded=True)
