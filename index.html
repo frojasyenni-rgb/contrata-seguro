@@ -474,42 +474,69 @@ async function login() {
   const pass  = document.getElementById('login-password').value;
   const alertEl = document.getElementById('login-alert');
   alertEl.className = 'alert';
-  if (!sb) { closeModal(); return; }
+  if (!email || !pass) {
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Complet\u00e1 email y contrase\u00f1a';
+    return;
+  }
   try {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-    if (error) {
+    // Intentar login via proxy Railway (evita MetaMask y similares)
+    let loginData = null;
+    let loginError = null;
+    try {
+      const r = await fetch(API_URL + '/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass })
+      });
+      const d = await r.json();
+      if (!r.ok) { loginError = d.error || 'Credenciales incorrectas'; }
+      else { loginData = d; }
+    } catch(proxyErr) {
+      // Si el proxy falla, intentar directo con Supabase
+      if (sb) {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+        if (error) { loginError = 'Email o contrase\u00f1a incorrectos'; }
+        else { loginData = data?.session; }
+      } else {
+        loginError = 'Error de conexi\u00f3n';
+      }
+    }
+    if (loginError) {
       alertEl.className = 'alert error';
-      alertEl.textContent = 'Email o contraseña incorrectos';
+      alertEl.textContent = loginError;
       return;
     }
-    // Cerrar modal PRIMERO
+    // Cerrar modal inmediatamente
     closeModal();
-    // Setear usuario y actualizar header INMEDIATAMENTE sin esperar DB
-    usuario = data.user;
-    perfil = perfil || { id: data.user.id, email: data.user.email, plan: 'gratis', creditos: 0, suscripcion_activa: false };
+    // Si tenemos session via proxy, setear la sesion en Supabase client
+    if (loginData?.access_token && sb) {
+      await sb.auth.setSession({
+        access_token: loginData.access_token,
+        refresh_token: loginData.refresh_token || ''
+      });
+    }
+    // Setear usuario y actualizar header inmediatamente
+    const userObj = loginData?.user || { id: loginData?.user_id || '', email };
+    usuario = userObj;
+    perfil = perfil || { id: userObj.id, email: userObj.email, plan: 'gratis', creditos: 0, suscripcion_activa: false };
     document.getElementById('header-nav').style.display = 'none';
     document.getElementById('header-user').style.display = 'flex';
-    const creditos = perfil.creditos || 0;
-    const plan = perfil.plan || 'gratis';
-    document.getElementById('creditos-badge').textContent = plan === 'profesional' ? '\u221e ilimitadas' : creditos + ' consulta' + (creditos !== 1 ? 's' : '');
-    // Luego cargar perfil real en segundo plano
-    if (sb) {
-      sb.from('perfiles').select('*').eq('id', data.user.id).single().then(({ data: p }) => {
-        if (p) {
-          perfil = p;
-          actualizarHeaderUsuario();
-        } else {
-          sb.from('perfiles').upsert({ id: data.user.id, email: data.user.email, plan: 'gratis', creditos: 0, creditos_usados: 0, suscripcion_activa: false }).then(() => {
-            sb.from('perfiles').select('*').eq('id', data.user.id).single().then(({ data: p2 }) => { if (p2) { perfil = p2; actualizarHeaderUsuario(); }});
-          });
+    const cred = perfil.creditos || 0;
+    const pln = perfil.plan || 'gratis';
+    document.getElementById('creditos-badge').textContent = '\u25cf ' + (pln === 'profesional' ? '\u221e ilimitadas' : cred + ' consulta' + (cred !== 1 ? 's' : ''));
+    // Cargar perfil real en segundo plano
+    if (sb && userObj.id) {
+      sb.from('perfiles').select('*').eq('id', userObj.id).single().then(({ data: p }) => {
+        if (p) { perfil = p; actualizarHeaderUsuario(); }
+        else {
+          sb.from('perfiles').upsert({ id: userObj.id, email: userObj.email, plan: 'gratis', creditos: 0, creditos_usados: 0, suscripcion_activa: false });
         }
-      }).catch(e => console.warn('perfil load:', e.message));
+      }).catch(e => console.warn('perfil:', e.message));
     }
-    // Si había un pago pendiente
     if (window._pendingPlan) {
-      const plan2 = window._pendingPlan;
-      window._pendingPlan = null;
-      setTimeout(() => pagar(plan2), 500);
+      const p2 = window._pendingPlan; window._pendingPlan = null;
+      setTimeout(() => pagar(p2), 500);
     }
   } catch(e) {
     alertEl.className = 'alert error';
