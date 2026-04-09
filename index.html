@@ -470,78 +470,22 @@ function actualizarPlanBanner() {
 
 
 async function login() {
-  const email = document.getElementById('login-email').value.trim();
-  const pass  = document.getElementById('login-password').value;
-  const alertEl = document.getElementById('login-alert');
-  alertEl.className = 'alert';
-  if (!email || !pass) {
-    alertEl.className = 'alert error';
-    alertEl.textContent = 'Complet\u00e1 email y contrase\u00f1a';
-    return;
-  }
-  try {
-    // Intentar login via proxy Railway (evita MetaMask y similares)
-    let loginData = null;
-    let loginError = null;
-    try {
-      const r = await fetch(API_URL + '/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: pass })
-      });
-      const d = await r.json();
-      if (!r.ok) { loginError = d.error || 'Credenciales incorrectas'; }
-      else { loginData = d; }
-    } catch(proxyErr) {
-      // Si el proxy falla, intentar directo con Supabase
-      if (sb) {
-        const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-        if (error) { loginError = 'Email o contrase\u00f1a incorrectos'; }
-        else { loginData = data?.session; }
-      } else {
-        loginError = 'Error de conexi\u00f3n';
-      }
-    }
-    if (loginError) {
-      alertEl.className = 'alert error';
-      alertEl.textContent = loginError;
-      return;
-    }
-    // Cerrar modal inmediatamente
-    closeModal();
-    // Si tenemos session via proxy, setear la sesion en Supabase client
-    if (loginData?.access_token && sb) {
-      await sb.auth.setSession({
-        access_token: loginData.access_token,
-        refresh_token: loginData.refresh_token || ''
-      });
-    }
-    // Setear usuario y actualizar header inmediatamente
-    const userObj = loginData?.user || { id: loginData?.user_id || '', email };
-    usuario = userObj;
-    perfil = perfil || { id: userObj.id, email: userObj.email, plan: 'gratis', creditos: 0, suscripcion_activa: false };
-    document.getElementById('header-nav').style.display = 'none';
-    document.getElementById('header-user').style.display = 'flex';
-    const cred = perfil.creditos || 0;
-    const pln = perfil.plan || 'gratis';
-    document.getElementById('creditos-badge').textContent = '\u25cf ' + (pln === 'profesional' ? '\u221e ilimitadas' : cred + ' consulta' + (cred !== 1 ? 's' : ''));
-    // Cargar perfil real en segundo plano
-    if (sb && userObj.id) {
-      sb.from('perfiles').select('*').eq('id', userObj.id).single().then(({ data: p }) => {
-        if (p) { perfil = p; actualizarHeaderUsuario(); }
-        else {
-          sb.from('perfiles').upsert({ id: userObj.id, email: userObj.email, plan: 'gratis', creditos: 0, creditos_usados: 0, suscripcion_activa: false });
-        }
-      }).catch(e => console.warn('perfil:', e.message));
-    }
-    if (window._pendingPlan) {
-      const p2 = window._pendingPlan; window._pendingPlan = null;
-      setTimeout(() => pagar(p2), 500);
-    }
-  } catch(e) {
-    alertEl.className = 'alert error';
-    alertEl.textContent = 'Error de conexi\u00f3n. Intent\u00e1 de nuevo.';
-  }
+  const email=document.getElementById('login-email').value.trim();
+  const pass=document.getElementById('login-password').value;
+  const al=document.getElementById('login-alert');
+  al.className='alert';
+  if(!email||!pass){al.className='alert error';al.textContent='Complet\u00e1 email y contrase\u00f1a';return;}
+  try{
+    const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
+    if(error){al.className='alert error';al.textContent='Email o contrase\u00f1a incorrectos';return;}
+    closeModal();usuario=data.user;
+    perfil=perfil||{id:data.user.id,email:data.user.email,plan:'gratis',creditos:0,suscripcion_activa:false};
+    document.getElementById('header-nav').style.display='none';
+    document.getElementById('header-user').style.display='flex';
+    const cr=perfil.creditos||0,pl=perfil.plan||'gratis';
+    document.getElementById('creditos-badge').textContent='\u25cf '+(pl==='profesional'?'\u221e ilimitadas':cr+' consulta'+(cr!==1?'s':''));
+    if(sb&&data.user.id)sb.from('perfiles').select('*').eq('id',data.user.id).single().then(({data:p})=>{if(p){perfil=p;actualizarHeaderUsuario();}}).catch(()=>{});
+  }catch(ex){al.className='alert error';al.textContent='Error de conexi\u00f3n.';}
 }
 
 async function registro() {
@@ -670,7 +614,7 @@ function unhoverPlan(card) {
 async function iniciarBusqueda() {
   const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
   if (!nombre) { alert('Ingres\u00e1 un nombre para buscar'); return; }
-  if (!usuario || !perfil) { showModal('login'); return; }
+  /* sin login */
   const plan = perfil.plan || 'gratis';
   const creditos = perfil.creditos || 0;
   if (plan !== 'profesional' && !perfil.suscripcion_activa && creditos <= 0) {
@@ -826,7 +770,7 @@ function mostrarResultados(data) {
 // PANEL
 // ══════════════════════════════════════════════════════════
 async function cargarPanel() {
-  if (!usuario) { showPage('inicio'); showModal('login'); return; }
+  /* sin login */
 
   // Recargar perfil
   if (sb) {
