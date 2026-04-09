@@ -234,7 +234,7 @@ def buscar_pjn():
                 cn = caratula.upper()
                 sep = cn.find(" C/ ")
                 actor_parte = cn[:sep] if sep >= 0 else ""
-                rol = "ACTOR" if (actor_parte and all(re.search(r"\\b" + re.escape(p) + r"\\b", actor_parte) for p in FILTRAR_POR)) else "DEMANDADO"
+                rol = "ACTOR" if (actor_parte and all(re.search(r"\b" + re.escape(p) + r"\b", actor_parte) for p in FILTRAR_POR)) else "DEMANDADO"
                 nuevas.append({
                     "caratula":         caratula,
                     "expediente":       celdas[1] if len(celdas)>1 else "",
