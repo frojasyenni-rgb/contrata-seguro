@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """CONTRATA SEGURO - v3.1 - Busqueda de antecedentes laborales SCBA+PJN con validacion DNI/CUIL"""
-import requests
+import requests, os
 from bs4 import BeautifulSoup
 import json, time, sys, re
 
-SCBA_USUARIO = "Azul2205"
-SCBA_PASSWORD = "Indiabeagle2205"
+SCBA_USUARIO = os.environ.get("SCBA_USUARIO", "Azul2205")
+SCBA_PASSWORD = os.environ.get("SCBA_PASSWORD", "Indiabeagle2205")
 
 NOMBRE      = sys.argv[1] if len(sys.argv) > 1 else "MOSTEYRO"
 DNI_CUIL    = sys.argv[2] if len(sys.argv) > 2 else ""
