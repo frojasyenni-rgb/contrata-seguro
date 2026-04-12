@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- build: 1776035712975 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -143,7 +142,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 .alert.success{background:var(--verde-c);color:var(--verde);display:block;}
 
 /* MISC */
-.causa-card.actor{border-left-color:var(--verde) !important;background:linear-gradient(135deg,#f0fff4 0%,#e8f8ee 100%);}.badge-dni{background:#E8F4FD;color:#1A3A5C;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-left:6px;}.badge-ok{background:#D4EDDA;color:#155724;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;margin-left:6px;}.badge-fail{background:#F8D7DA;color:#721C24;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;margin-left:6px;}.badge-warn{background:#FFF3CD;color:#856404;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-left:6px;}.badge-actor{background:#1A7A4A;color:white;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;margin-left:6px;letter-spacing:0.5px;}
+.causa-card.actor{border-left-color:var(--verde) !important;background:linear-gradient(135deg,#f0fff4 0%,#e8f8ee 100%);}.badge-actor{background:#1A7A4A;color:white;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;margin-left:6px;letter-spacing:0.5px;}
 .disclaimer{font-size:11px;color:var(--gris-500);border-top:1px solid var(--gris-200);padding-top:12px;margin-top:8px;line-height:1.6;}
 .empty-state{text-align:center;padding:48px 20px;color:var(--gris-500);}
 .empty-icon{font-size:48px;margin-bottom:12px;}
@@ -219,8 +218,8 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <input type="text" id="inp-nombre" placeholder="Ej: GARCIA JUAN CARLOS" autocomplete="off" onkeydown="if(event.key==='Enter')iniciarBusqueda()">
         </div>
         <div class="field">
-          <label>DNI / CUIL (opcional)</label>
-          <input type="text" id="inp-cuil" placeholder="Ej: 12345678">
+          <label>CUIL (opcional)</label>
+          <input type="text" id="inp-cuil" placeholder="00-00000000-0">
         </div>
         <button class="btn btn-primary btn-sm" id="btn-buscar" onclick="iniciarBusqueda()" style="align-self:flex-end;margin-bottom:0;width:auto;padding:11px 22px">Buscar →</button>
       </div>
@@ -614,8 +613,7 @@ function unhoverPlan(card) {
 }
 
 async function iniciarBusqueda() {
-  const nombre  = document.getElementById('inp-nombre').value.trim().toUpperCase();
-  const dniCuil = (document.getElementById('inp-cuil').value || '').trim();
+  const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
   if (!nombre) { alert('Ingres\u00e1 un nombre para buscar'); return; }
   if (!usuario || !perfil) { showModal('login'); return; }
   const plan = perfil.plan || 'gratis';
@@ -635,7 +633,7 @@ async function iniciarBusqueda() {
   document.getElementById('prog-detalle').textContent = '';
 
   const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
-  const url = API_URL + '/buscar/stream?nombre=' + encodeURIComponent(nombre) + (token ? '&token=' + token : '') + (dniCuil ? '&dni_cuil=' + encodeURIComponent(dniCuil) : '');
+  const url = API_URL + '/buscar/stream?nombre=' + encodeURIComponent(nombre) + (token ? '&token=' + token : '');
 
   let evtSource;
   try {
@@ -751,7 +749,7 @@ function mostrarResultados(data) {
     lista.innerHTML = causas.map(c => {
       const activa = (c.estado||'').toLowerCase().includes('despacho') || (c.ultima_actuacion||'').match(/202[56]/);
       return `<div class="causa-card ${activa?'':'arch'} ${(()=>{const cn=(c.caratula||'').toUpperCase();const sep=cn.indexOf(' C/ ');const ap=sep>=0?cn.substring(0,sep):'';return(c.rol==='ACTOR'||(ap.length>0&&(data._nombre||data.nombre||'').toUpperCase().split(' ').filter(Boolean).some(p=>ap.includes(p))));})()?'actor':''}">
-        <div class="causa-caratula">${c.caratula}<span class="badge ${activa?'badge-r':'badge-g'}">${c.estado||'Ver detalle'}</span><span class="badge badge-a">${c.fuente||'SCBA'}</span>${(()=>{const cn=(c.caratula||'').toUpperCase();const sep=cn.indexOf(' C/ ');const ap=sep>=0?cn.substring(0,sep):'';return(c.rol==='ACTOR'||(ap.length>0&&(data._nombre||data.nombre||'').toUpperCase().split(' ').filter(Boolean).some(p=>ap.includes(p))));})()?'<span class=\"badge badge-actor\">\u2605 ACTOR</span>':'+(c.dni_validacion==='coincide'?'<span class="badge-ok">✓ coincide</span>':'')+(c.dni_validacion==='no_coincide'?'<span class="badge-fail">✗ no coincide</span>':'')+(c.dni_validacion==='no_encontrado'?'<span class="badge-warn">⚠ no hallado</span>':'')'}</div>
+        <div class="causa-caratula">${c.caratula}<span class="badge ${activa?'badge-r':'badge-g'}">${c.estado||'Ver detalle'}</span><span class="badge badge-a">${c.fuente||'SCBA'}</span>${(()=>{const cn=(c.caratula||'').toUpperCase();const sep=cn.indexOf(' C/ ');const ap=sep>=0?cn.substring(0,sep):'';return(c.rol==='ACTOR'||(ap.length>0&&(data._nombre||data.nombre||'').toUpperCase().split(' ').filter(Boolean).some(p=>ap.includes(p))));})()?'<span class=\"badge badge-actor\">\u2605 ACTOR</span>':''}</div>
         <div class="causa-grid">
           ${c.expediente?`<div class="causa-field"><b>Expediente</b>${c.expediente}</div>`:''}
           ${c.juzgado?`<div class="causa-field"><b>Juzgado</b>${c.juzgado}</div>`:''}
@@ -1023,4 +1021,3 @@ if (urlParams.get('pago') === 'ok') {
   </a>
 </body>
 </html>
-                    
