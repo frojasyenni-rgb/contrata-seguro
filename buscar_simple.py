@@ -54,6 +54,10 @@ def buscar_dni_expediente(s, nid, gam):
     try:
         r = s.get(f"{BASE}/procesales.asp", params={"nidCausa": nid, "pidJuzgado": gam}, timeout=15)
         if not r.ok: return ""
+        if "Ingrese los datos del Usuario" in r.text:
+            sess = do_login()
+            if not sess: return []
+            r = sess.get(url, timeout=30)
         soup = BeautifulSoup(r.text, "html.parser")
         texto = ""
         for row in soup.find_all("tr"):
