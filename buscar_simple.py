@@ -4,11 +4,29 @@ import requests, os, unicodedata
 from bs4 import BeautifulSoup
 import json, time, sys, re
 
-SCBA_USUARIO = os.environ.get("SCBA_USUARIO", "Azul2205")
-SCBA_PASSWORD = os.environ.get("SCBA_PASSWORD", "Indiabeagle2205")
+# Credenciales solo por entorno (p. ej. Railway); nunca en el código fuente.
+SCBA_USUARIO = (os.environ.get("SCBA_USUARIO") or "").strip()
+SCBA_PASSWORD = (os.environ.get("SCBA_PASSWORD") or "").strip()
 
 NOMBRE = sys.argv[1] if len(sys.argv) > 1 else "MOSTEYRO"
 DNI_CUIL = sys.argv[2] if len(sys.argv) > 2 else ""
+
+
+def _abort_sin_credenciales_scba():
+    msg = "Defina SCBA_USUARIO y SCBA_PASSWORD en el entorno del servidor."
+    print(msg, file=sys.stderr)
+    out = {
+        "nombre": NOMBRE,
+        "dni_buscado": DNI_CUIL or None,
+        "total": 0,
+        "causas_scba": 0,
+        "causas_pjn": 0,
+        "estado_pjn": "error",
+        "causas": [],
+        "error_config": msg,
+    }
+    print(f"RESULTADO:{json.dumps(out, ensure_ascii=False)}", flush=True)
+    sys.exit(1)
 
 def normalizar(texto):
     return unicodedata.normalize("NFD", texto.upper()).encode("ascii", "ignore").decode("ascii")
@@ -255,6 +273,9 @@ def buscar_pjn():
         return causas, "ok"
     except Exception:
         return [], "error"
+
+if not SCBA_USUARIO or not SCBA_PASSWORD:
+    _abort_sin_credenciales_scba()
 
 scba = buscar_scba()
 progreso(88, "PJN -- Capital Federal", "Camara Nacional del Trabajo", len(scba))

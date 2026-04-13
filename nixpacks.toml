@@ -1,3 +1,9 @@
-# Fuerza instalación explícita de dependencias (incl. mercadopago) en Nixpacks / Railway
+# Nixpacks / Railway: instalar en el MISMO intérprete que usa Gunicorn (.venv).
+# Pasos explícitos evitan que mercadopago quede fuera del venv si `pip` apunta a otro Python.
 [phases.install]
-cmds = ["pip install --no-cache-dir -r requirements.txt"]
+cmds = [
+  "python -m pip install --upgrade pip",
+  "python -m pip install --no-cache-dir -r requirements.txt",
+  "python -m pip install --no-cache-dir 'mercadopago>=2.2.0'",
+  'python -c "import mercadopago"',
+]
