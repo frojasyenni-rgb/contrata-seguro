@@ -350,6 +350,27 @@ def login_proxy():
         return jsonify({"error": msg}), 500
 
 
+@app.route("/debug-scraper")
+def debug_scraper():
+    import subprocess, sys, os
+    nombre = request.args.get("nombre", "MOSTEYRO")
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
+    try:
+        result = subprocess.run(
+            [sys.executable, script, nombre.upper()],
+            capture_output=True, text=True, timeout=30,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        return jsonify({
+            "stdout_last500": result.stdout[-500:],
+            "stderr": result.stderr[-1000:],
+            "returncode": result.returncode,
+            "nombre": nombre.upper(),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
 if __name__ == "__main__":
     port=int(os.environ.get("PORT",5000))
     app.run(host="0.0.0.0",port=port,threaded=True)
