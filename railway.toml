@@ -1,0 +1,6 @@
+# Config en código: sobrescribe el "Start Command" del panel de Railway.
+# No uses $PORT aquí; entrypoint_gunicorn.py lee os.environ["PORT"].
+# https://docs.railway.com/reference/config-as-code
+
+[deploy]
+startCommand = "python entrypoint_gunicorn.py"
