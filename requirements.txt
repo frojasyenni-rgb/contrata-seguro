@@ -4,6 +4,6 @@ gunicorn
 requests
 beautifulsoup4
 lxml
-mercadopago
+mercadopago>=2.2.0
 supabase
 PyJWT
