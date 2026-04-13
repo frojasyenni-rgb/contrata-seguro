@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contrata Seguro — Consulta Judicial Laboral</title>
+<title>Contrata Seguro â Consulta Judicial Laboral</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
 <script src="https://sdk.mercadopago.com/js/v2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -120,7 +120,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 .wa-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(37,211,102,0.5);}
 .wa-btn svg{width:22px;height:22px;flex-shrink:0;}
 .plan-feature{font-size:12px;color:var(--gris-500);margin-bottom:6px;text-align:left;}
-.plan-feature::before{content:"✓ ";color:var(--verde);font-weight:700;}
+.plan-feature::before{content:"â ";color:var(--verde);font-weight:700;}
 
 /* TABS */
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--gris-200);margin-bottom:20px;}
@@ -164,11 +164,11 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 <header>
   <div class="logo" style="white-space:nowrap">Contrata&nbsp;<span>Seguro</span></div>
   <div class="header-nav" id="header-nav">
-    <button class="nav-btn nav-btn-outline" onclick="showModal('login')">Iniciar sesión</button>
+    <button class="nav-btn nav-btn-outline" onclick="showModal('login')">Iniciar sesiÃ³n</button>
     <button class="nav-btn nav-btn-solid" onclick="showModal('registro')">Registrarse gratis</button>
   </div>
   <div class="header-nav" id="header-user" style="display:none">
-    <div class="creditos-badge" id="creditos-badge">● 3 consultas</div>
+    <div class="creditos-badge" id="creditos-badge">â 3 consultas</div>
     <button class="nav-btn nav-btn-outline" onclick="showPage('panel')">Mi panel</button>
     <button class="nav-btn nav-btn-outline" onclick="logout()">Salir</button>
   </div>
@@ -179,38 +179,38 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
   <div class="modal">
     <div id="modal-login">
       <div class="modal-title">Bienvenido</div>
-      <div class="modal-sub">Ingresá con tu cuenta para acceder a tus consultas</div>
+      <div class="modal-sub">IngresÃ¡ con tu cuenta para acceder a tus consultas</div>
       <div class="alert" id="login-alert"></div>
       <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="tu@email.com"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="login-password" placeholder="••••••••"></div>
+      <div class="field"><label>ContraseÃ±a</label><input type="password" id="login-password" placeholder="â¢â¢â¢â¢â¢â¢â¢â¢"></div>
       <button class="btn btn-primary" onclick="login()">Ingresar</button>
-      <div class="modal-switch">¿No tenés cuenta? <a onclick="toggleModal('registro')">Registrarse gratis</a></div>
+      <div class="modal-switch">Â¿No tenÃ©s cuenta? <a onclick="toggleModal('registro')">Registrarse gratis</a></div>
     </div>
     <div id="modal-registro" style="display:none">
       <div class="modal-title">Crear cuenta</div>
-      <div class="modal-sub">Creá tu cuenta para empezar a consultar</div>
+      <div class="modal-sub">CreÃ¡ tu cuenta para empezar a consultar</div>
       <div class="alert" id="reg-alert"></div>
       <div class="field"><label>Nombre completo</label><input type="text" id="reg-nombre" placeholder="Fernando Rojas"></div>
       <div class="field"><label>Email</label><input type="email" id="reg-email" placeholder="tu@email.com"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres"></div>
+      <div class="field"><label>ContraseÃ±a</label><input type="password" id="reg-pass" placeholder="MÃ­nimo 6 caracteres"></div>
       <button class="btn btn-primary" onclick="registro()">Crear cuenta gratis</button>
-      <div class="modal-switch">¿Ya tenés cuenta? <a onclick="toggleModal('login')">Iniciar sesión</a></div>
+      <div class="modal-switch">Â¿Ya tenÃ©s cuenta? <a onclick="toggleModal('login')">Iniciar sesiÃ³n</a></div>
     </div>
     <div style="text-align:right;margin-top:12px"><a class="link" style="font-size:12px" onclick="closeModal()">Cerrar</a></div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════ -->
+<!-- ââââââââââââââââââââââââââââââââââââââ -->
 <!-- PAGE: INICIO -->
-<!-- ══════════════════════════════════════ -->
+<!-- ââââââââââââââââââââââââââââââââââââââ -->
 <div class="page active" id="page-inicio">
   <div class="container">
     <div class="hero">
       <h1>Antecedentes laborales<br>antes de contratar</h1>
-      <p>Consultá si una persona tiene juicios laborales en la Provincia de Buenos Aires y Capital Federal. Resultado en minutos.</p>
+      <p>ConsultÃ¡ si una persona tiene juicios laborales en la Provincia de Buenos Aires y Capital Federal. Resultado en minutos.</p>
     </div>
 
-    <!-- BÚSQUEDA -->
+    <!-- BÃSQUEDA -->
     <div class="card">
       <div class="search-row">
         <div class="field">
@@ -221,11 +221,11 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <label>CUIL (opcional)</label>
           <input type="text" id="inp-cuil" placeholder="00-00000000-0">
         </div>
-        <button class="btn btn-primary btn-sm" id="btn-buscar" onclick="iniciarBusqueda()" style="align-self:flex-end;margin-bottom:0;width:auto;padding:11px 22px">Buscar →</button>
+        <button class="btn btn-primary btn-sm" id="btn-buscar" onclick="iniciarBusqueda()" style="align-self:flex-end;margin-bottom:0;width:auto;padding:11px 22px">Buscar â</button>
       </div>
       <div class="fuentes">
-        <span class="fuente-tag">✓ SCBA — 46 Tribunales Prov. Bs.As.</span>
-        <span class="fuente-tag">✓ PJN — Capital Federal</span>
+        <span class="fuente-tag">â SCBA â 46 Tribunales Prov. Bs.As.</span>
+        <span class="fuente-tag">â PJN â Capital Federal</span>
       </div>
     </div>
 
@@ -255,24 +255,24 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <div class="disclaimer" id="disclaimer"></div>
     </div>
 
-    <!-- PLANES PROMO (cuando no está logueado) -->
+    <!-- PLANES PROMO (cuando no estÃ¡ logueado) -->
     <div id="planes-promo" style="margin-top:32px">
       <div style="text-align:center;margin-bottom:20px">
         <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--gris-900)">Planes y precios</div>
-        <div style="font-size:14px;color:var(--gris-500);margin-top:6px">Consultá antecedentes laborales antes de contratar.</div>
+        <div style="font-size:14px;color:var(--gris-500);margin-top:6px">ConsultÃ¡ antecedentes laborales antes de contratar.</div>
       </div>
       <div class="planes-grid" id="planes-home">
         <div class="plan-card">
-          <div class="plan-nombre">Básico</div>
+          <div class="plan-nombre">BÃ¡sico</div>
           <div class="plan-precio">$15.000<span>/mes</span></div>
           <div class="plan-consultas">20 consultas por mes</div>
           <div class="plan-feature">SCBA + PJN incluido</div>
           <div class="plan-feature">Historial de consultas</div>
           <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar créditos</button>
+          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar crÃ©ditos</button>
         </div>
         <div class="plan-card featured">
-          <div class="plan-featured-badge">MÁS POPULAR</div>
+          <div class="plan-featured-badge">MÃS POPULAR</div>
           <div class="plan-nombre">Profesional</div>
           <div class="plan-precio">$45.000<span>/mes</span></div>
           <div class="plan-consultas">Consultas ilimitadas</div>
@@ -280,29 +280,29 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <div class="plan-feature">Historial completo</div>
           <div class="plan-feature">Descarga en PDF</div>
           <div class="plan-feature">Prioridad en soporte</div>
-          <button class="btn btn-primary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('profesional')">Comprar créditos</button>
+          <button class="btn btn-primary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('profesional')">Comprar crÃ©ditos</button>
         </div>
         <div class="plan-card">
           <div class="plan-nombre">Por consulta</div>
           <div class="plan-precio">$2.500<span>/c/u</span></div>
-          <div class="plan-consultas">Sin suscripción mensual</div>
+          <div class="plan-consultas">Sin suscripciÃ³n mensual</div>
           <div class="plan-feature">SCBA + PJN incluido</div>
           <div class="plan-feature">Historial de consultas</div>
           <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('credito_5')">Comprar créditos</button>
+          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('credito_5')">Comprar crÃ©ditos</button>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════ -->
+<!-- ââââââââââââââââââââââââââââââââââââââ -->
 <!-- PAGE: PANEL -->
-<!-- ══════════════════════════════════════ -->
+<!-- ââââââââââââââââââââââââââââââââââââââ -->
 <div class="page" id="page-panel">
   <div class="container">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
-      <a class="link" onclick="showPage('inicio')">← Inicio</a>
+      <a class="link" onclick="showPage('inicio')">â Inicio</a>
     </div>
 
     <div class="tabs">
@@ -318,7 +318,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
         <button class="btn btn-primary btn-sm" onclick="showPage('inicio')">Nueva consulta</button>
       </div>
       <div id="historial-list">
-        <div class="empty-state"><div class="empty-icon">🔍</div>Cargando historial...</div>
+        <div class="empty-state"><div class="empty-icon">ð</div>Cargando historial...</div>
       </div>
     </div>
 
@@ -327,16 +327,16 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <div id="plan-actual-banner" style="margin-bottom:20px"></div>
       <div class="planes-grid" id="planes-pago">
         <div class="plan-card">
-          <div class="plan-nombre">Básico</div>
+          <div class="plan-nombre">BÃ¡sico</div>
           <div class="plan-precio">$15.000<span>/mes</span></div>
           <div class="plan-consultas">20 consultas por mes</div>
           <div class="plan-feature">SCBA + PJN incluido</div>
           <div class="plan-feature">Historial de consultas</div>
           <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar créditos</button>
+          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar crÃ©ditos</button>
         </div>
         <div class="plan-card featured">
-          <div class="plan-featured-badge">MÁS POPULAR</div>
+          <div class="plan-featured-badge">MÃS POPULAR</div>
           <div class="plan-nombre">Profesional</div>
           <div class="plan-precio">$45.000<span>/mes</span></div>
           <div class="plan-consultas">Consultas ilimitadas</div>
@@ -344,16 +344,16 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <div class="plan-feature">Historial completo</div>
           <div class="plan-feature">Descarga en PDF</div>
           <div class="plan-feature">Prioridad en soporte</div>
-          <button class="btn btn-primary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('profesional')">Comprar créditos</button>
+          <button class="btn btn-primary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('profesional')">Comprar crÃ©ditos</button>
         </div>
         <div class="plan-card">
           <div class="plan-nombre">Por consulta</div>
           <div class="plan-precio">$2.500<span>/c/u</span></div>
-          <div class="plan-consultas">Sin suscripción mensual</div>
+          <div class="plan-consultas">Sin suscripciÃ³n mensual</div>
           <div class="plan-feature">SCBA + PJN incluido</div>
           <div class="plan-feature">Historial de consultas</div>
           <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('credito_5')">Comprar créditos</button>
+          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('credito_5')">Comprar crÃ©ditos</button>
         </div>
       </div>
     </div>
@@ -376,9 +376,9 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 </div>
 
 <script>
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // CONFIG
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const API_URL = 'https://web-production-46da7.up.railway.app';
 const SUPABASE_URL = 'https://gluolujxtatwkmcufoem.supabase.co'; // Se reemplaza al configurar
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdW9sdWp4dGF0d2ttY3Vmb2VtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Njk4NzAsImV4cCI6MjA5MDU0NTg3MH0.QHeYQjwCPLN9H2Ujj5wRuufGtnViAqn0kWETDxNZtFI'; // Se reemplaza al configurar
@@ -388,15 +388,15 @@ let usuario = null;
 let perfil = null;
 let resultadoActual = null;
 
-// Inicializar Supabase si está configurado
+// Inicializar Supabase si estÃ¡ configurado
 if (true) {
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   inicializarAuth();
 }
 
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // AUTH
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function inicializarAuth() {
   if (!sb) return;
   const { data: { session } } = await sb.auth.getSession();
@@ -411,7 +411,7 @@ async function inicializarAuth() {
 async function setUsuario(user) {
   usuario = user;
   let { data } = await sb.from('perfiles').select('*').eq('id', user.id).single();
-  // Si no tiene perfil, crearlo automáticamente
+  // Si no tiene perfil, crearlo automÃ¡ticamente
   if (!data) {
     await sb.from('perfiles').upsert({
       id: user.id,
@@ -442,8 +442,8 @@ function actualizarHeaderUsuario() {
   document.getElementById('header-user').style.display = 'flex';
   const creditos = perfil?.creditos || 0;
   const plan = perfil?.plan || 'gratis';
-  const txt = plan === 'profesional' ? '∞ ilimitadas' : `${creditos} consulta${creditos !== 1 ? 's' : ''}`;
-  document.getElementById('creditos-badge').textContent = `● ${txt}`;
+  const txt = plan === 'profesional' ? 'â ilimitadas' : `${creditos} consulta${creditos !== 1 ? 's' : ''}`;
+  document.getElementById('creditos-badge').textContent = `â ${txt}`;
 }
 
 function actualizarPlanBanner() {
@@ -453,10 +453,10 @@ function actualizarPlanBanner() {
   var cr = perfil.creditos || 0;
   var vence = perfil.suscripcion_vence ? new Date(perfil.suscripcion_vence).toLocaleDateString('es-AR') : '';
   var q = String.fromCharCode(39);
-  var label = plan === 'profesional' ? 'Plan Profesional — Consultas ilimitadas' : plan === 'basico' ? 'Plan Básico — ' + cr + ' consultas' : 'Plan Gratis — ' + cr + ' consultas';
+  var label = plan === 'profesional' ? 'Plan Profesional â Consultas ilimitadas' : plan === 'basico' ? 'Plan BÃ¡sico â ' + cr + ' consultas' : 'Plan Gratis â ' + cr + ' consultas';
   var btns = '';
   if (plan !== 'profesional') btns += '<button class="btn btn-primary btn-sm" onclick="pagar(' + q + 'profesional' + q + ')">Mejorar a Profesional</button> ';
-  if (plan === 'gratis') btns += '<button class="btn btn-secondary btn-sm" onclick="pagar(' + q + 'basico' + q + ')">Plan Básico</button> ';
+  if (plan === 'gratis') btns += '<button class="btn btn-secondary btn-sm" onclick="pagar(' + q + 'basico' + q + ')">Plan BÃ¡sico</button> ';
   btns += '<button class="btn btn-secondary btn-sm" onclick="pagar(' + q + 'credito_5' + q + ')">+ Consulta ($2.500)</button>';
   b.innerHTML = '<div style="background:#f0f4ff;border:1px solid #c7d7fc;border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px"><div><b style="color:#1a4ffa">' + label + '</b>' + (vence ? '<br><small style="color:#555">Vence ' + vence + '</small>' : '') + '</div><div style="display:flex;gap:8px;flex-wrap:wrap">' + btns + '</div></div>';
 }
@@ -477,10 +477,10 @@ async function login() {
   const { error } = await sb.auth.signInWithPassword({ email, password: pass });
   if (error) {
     alertEl.className = 'alert error';
-    alertEl.textContent = 'Email o contraseña incorrectos';
+    alertEl.textContent = 'Email o contraseÃ±a incorrectos';
   } else {
     closeModal();
-    // Si había un pago pendiente, ejecutarlo
+    // Si habÃ­a un pago pendiente, ejecutarlo
     if (window._pendingPlan) {
       const plan = window._pendingPlan;
       window._pendingPlan = null;
@@ -498,7 +498,7 @@ async function registro() {
 
   if (!nombre || !email || pass.length < 6) {
     alertEl.className = 'alert error';
-    alertEl.textContent = 'Completá todos los campos (contraseña mínimo 6 caracteres)';
+    alertEl.textContent = 'CompletÃ¡ todos los campos (contraseÃ±a mÃ­nimo 6 caracteres)';
     return;
   }
 
@@ -511,11 +511,11 @@ async function registro() {
 
   if (error) {
     alertEl.className = 'alert error';
-    alertEl.textContent = error.message.includes('already') ? 'Este email ya está registrado' : error.message;
+    alertEl.textContent = error.message.includes('already') ? 'Este email ya estÃ¡ registrado' : error.message;
     return;
   }
 
-  // Crear perfil automáticamente
+  // Crear perfil automÃ¡ticamente
   if (signUpData?.user) {
     await sb.from('perfiles').upsert({
       id: signUpData.user.id,
@@ -528,15 +528,15 @@ async function registro() {
     });
   }
 
-  // Login automático — mailer_autoconfirm está activo, no hace falta confirmar email
+  // Login automÃ¡tico â mailer_autoconfirm estÃ¡ activo, no hace falta confirmar email
   const { error: loginError } = await sb.auth.signInWithPassword({ email, password: pass });
   if (!loginError) {
     alertEl.className = 'alert success';
-    alertEl.textContent = '¡Cuenta creada! Iniciando sesión...';
+    alertEl.textContent = 'Â¡Cuenta creada! Iniciando sesiÃ³n...';
     setTimeout(() => { closeModal(); }, 1200);
   } else {
     alertEl.className = 'alert success';
-    alertEl.textContent = '¡Cuenta creada! Ya podés iniciar sesión.';
+    alertEl.textContent = 'Â¡Cuenta creada! Ya podÃ©s iniciar sesiÃ³n.';
   }
 }
 
@@ -546,9 +546,9 @@ async function logout() {
   showPage('inicio');
 }
 
-// ══════════════════════════════════════════════════════════
-// NAVEGACIÓN
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// NAVEGACIÃN
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(`page-${name}`).classList.add('active');
@@ -589,10 +589,10 @@ function switchTab(btn, tabId) {
   if (tabId === 'tab-cuenta') cargarCuenta();
 }
 
-// ══════════════════════════════════════════════════════════
-// BÚSQUEDA
-// ══════════════════════════════════════════════════════════
-// ── Hover planes ────────────────────────────────────
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// BÃSQUEDA
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ââ Hover planes ââââââââââââââââââââââââââââââââââââ
 function hoverPlan(card) {
   // Quitar hover-active de todas las tarjetas del mismo grid
   const grid = card.closest('.planes-grid');
@@ -612,7 +612,19 @@ function unhoverPlan(card) {
   }
 }
 
-async function iniciarBusqueda() {
+
+  let evtSource = null; // global para poder cancelar entre búsquedas
+  async function iniciarBusqueda() {
+  // RESET: cancelar búsqueda anterior si existe
+  if (evtSource) { try { evtSource.close(); } catch(e) {} evtSource = null; }
+  // RESET UI al estado inicial
+  const secBuscando = document.getElementById('seccion-buscando');
+  const secResultados = document.getElementById('seccion-resultados');
+  if (secBuscando) secBuscando.classList.remove('hidden');
+  if (secResultados) secResultados.classList.add('hidden');
+  const estadoEl = document.getElementById('estado-texto') || document.getElementById('estadoTexto') || document.querySelector('[data-estado]');
+  if (estadoEl) estadoEl.textContent = 'Iniciando...';
+
   const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
   if (!nombre) { alert('Ingres\u00e1 un nombre para buscar'); return; }
   if (!usuario || !perfil) { showModal('login'); return; }
@@ -635,7 +647,6 @@ async function iniciarBusqueda() {
   const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
   const url = API_URL + '/buscar/stream?nombre=' + encodeURIComponent(nombre) + (token ? '&token=' + token : '');
 
-  let evtSource;
   try {
     evtSource = new EventSource(url);
   } catch(e) {
@@ -730,21 +741,21 @@ function mostrarResultados(data) {
     (c.ultima_actuacion||'').includes('2025')
   ).length;
 
-  document.getElementById('res-titulo').textContent = `Resultados — ${data._nombre || ''}`;
+  document.getElementById('res-titulo').textContent = `Resultados â ${data._nombre || ''}`;
 
   document.getElementById('metricas').innerHTML = `
     <div class="metrica"><div class="metrica-val ${total>0?'r':'g'}">${total}</div><div class="metrica-label">Total causas</div></div>
     <div class="metrica"><div class="metrica-val ${activas>0?'r':'g'}">${activas}</div><div class="metrica-label">Activas</div></div>
-    <div class="metrica"><div class="metrica-val n" style="font-size:16px">SCBA ${data.causas_scba||0} · PJN ${data.causas_pjn||0}</div><div class="metrica-label">Por fuente</div></div>
+    <div class="metrica"><div class="metrica-val n" style="font-size:16px">SCBA ${data.causas_scba||0} Â· PJN ${data.causas_pjn||0}</div><div class="metrica-label">Por fuente</div></div>
   `;
 
   document.getElementById('alerta-res').innerHTML = total > 0
-    ? `<div class="alerta-res">⚠ Esta persona registra <strong>${total} causa(s)</strong> laboral(es). Analizá el detalle antes de contratar.</div>`
+    ? `<div class="alerta-res">â  Esta persona registra <strong>${total} causa(s)</strong> laboral(es). AnalizÃ¡ el detalle antes de contratar.</div>`
     : '';
 
   const lista = document.getElementById('causas-list');
   if (!causas.length) {
-    lista.innerHTML = `<div class="sin-res"><div style="font-size:40px;margin-bottom:10px">✓</div><strong>Sin antecedentes laborales</strong><br><br>No se encontraron causas en los Tribunales de Trabajo del SCBA ni en el PJN.</div>`;
+    lista.innerHTML = `<div class="sin-res"><div style="font-size:40px;margin-bottom:10px">â</div><strong>Sin antecedentes laborales</strong><br><br>No se encontraron causas en los Tribunales de Trabajo del SCBA ni en el PJN.</div>`;
   } else {
     lista.innerHTML = causas.map(c => {
       const activa = (c.estado||'').toLowerCase().includes('despacho') || (c.ultima_actuacion||'').match(/202[56]/);
@@ -754,22 +765,22 @@ function mostrarResultados(data) {
           ${c.expediente?`<div class="causa-field"><b>Expediente</b>${c.expediente}</div>`:''}
           ${c.juzgado?`<div class="causa-field"><b>Juzgado</b>${c.juzgado}</div>`:''}
           ${c.fecha_inicio?`<div class="causa-field"><b>Inicio</b>${c.fecha_inicio}</div>`:''}
-          ${c.ultima_actuacion?`<div class="causa-field"><b>Última actuación</b>${c.ultima_actuacion}</div>`:''}
+          ${c.ultima_actuacion?`<div class="causa-field"><b>Ãltima actuaciÃ³n</b>${c.ultima_actuacion}</div>`:''}
         </div>
       </div>`;
     }).join('');
   }
 
   document.getElementById('disclaimer').textContent =
-    `Fuente: SCBA y PJN (datos públicos). Consulta: ${new Date().toLocaleString('es-AR')}. Usar como elemento de análisis y no como único criterio.`;
+    `Fuente: SCBA y PJN (datos pÃºblicos). Consulta: ${new Date().toLocaleString('es-AR')}. Usar como elemento de anÃ¡lisis y no como Ãºnico criterio.`;
 
   document.getElementById('resultados-section').style.display = 'block';
   document.getElementById('resultados-section').scrollIntoView({behavior:'smooth'});
 }
 
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // PANEL
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function cargarPanel() {
   if (!usuario) { showPage('inicio'); showModal('login'); return; }
 
@@ -783,7 +794,7 @@ async function cargarPanel() {
   // Banner plan actual
   const plan = perfil?.plan || 'gratis';
   const creditos = perfil?.creditos || 0;
-  const planNombres = {gratis:'Gratis', basico:'Básico', profesional:'Profesional'};
+  const planNombres = {gratis:'Gratis', basico:'BÃ¡sico', profesional:'Profesional'};
   document.getElementById('plan-actual-banner').innerHTML = `
     <div style="background:var(--azul-c);border:1px solid var(--azul-m);border-radius:10px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
       <div>
@@ -799,7 +810,7 @@ async function cargarPanel() {
 async function cargarHistorial() {
   const lista = document.getElementById('historial-list');
   if (!sb || !usuario) {
-    lista.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div>Iniciá sesión para ver tu historial</div>';
+    lista.innerHTML = '<div class="empty-state"><div class="empty-icon">ð</div>IniciÃ¡ sesiÃ³n para ver tu historial</div>';
     return;
   }
 
@@ -810,7 +821,7 @@ async function cargarHistorial() {
     .limit(30);
 
   if (!data?.length) {
-    lista.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><strong>Sin consultas aún</strong><br><br>Hacé tu primera búsqueda desde la pantalla de inicio.</div>';
+    lista.innerHTML = '<div class="empty-state"><div class="empty-icon">ð</div><strong>Sin consultas aÃºn</strong><br><br>HacÃ© tu primera bÃºsqueda desde la pantalla de inicio.</div>';
     return;
   }
 
@@ -819,7 +830,7 @@ async function cargarHistorial() {
     return `<div class="historial-item">
       <div>
         <div class="historial-nombre">${c.nombre_buscado}</div>
-        <div class="historial-meta">${fecha} · SCBA ${c.causas_scba||0} · PJN ${c.causas_pjn||0}</div>
+        <div class="historial-meta">${fecha} Â· SCBA ${c.causas_scba||0} Â· PJN ${c.causas_pjn||0}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="historial-causas ${c.total_causas>0?'con':'sin'}">${c.total_causas} causa${c.total_causas!==1?'s':''}</span>
@@ -870,11 +881,13 @@ async function guardarCuenta() {
   }
 }
 
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // PAGOS
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function pagar(planKey) {
-  // Refrescar sesión antes de verificar
+  // RESET: limpiar preferencia anterior para permitir re-selección
+  
+  // Refrescar sesiÃ³n antes de verificar
   if (sb && !usuario) {
     try {
       const { data: { session } } = await sb.auth.getSession();
@@ -883,7 +896,7 @@ async function pagar(planKey) {
   }
   if (!usuario) {
     showModal('login');
-    // Guardar el plan para después del login
+    // Guardar el plan para despuÃ©s del login
     window._pendingPlan = planKey;
     return;
   }
@@ -906,16 +919,16 @@ async function pagar(planKey) {
       alert(data.error || 'Error al procesar el pago');
     }
   } catch(e) {
-    alert('Error de conexión: ' + e.message);
+    alert('Error de conexiÃ³n: ' + e.message);
   } finally {
     // Rehabilitar botones para que pueda elegir otro plan sin recargar
     document.querySelectorAll('.plan-card button').forEach(b => b.disabled = false);
   }
 }
 
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // EXPORTAR
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function exportarJSON() {
   if (!resultadoActual) return;
   const _nb=(resultadoActual._nombre||resultadoActual.nombre||'').toUpperCase().split(' ').filter(Boolean);
@@ -935,7 +948,7 @@ function exportarJSON() {
 
 function descargarPDF() {
   if (!resultadoActual) return;
-  // Generar PDF básico con la info
+  // Generar PDF bÃ¡sico con la info
   const _nb2=(resultadoActual._nombre||resultadoActual.nombre||'').toUpperCase().split(' ').filter(Boolean);
   const causas=(resultadoActual.causas||[]).filter(c=>{
     if(c.rol==='ACTOR') return true;
@@ -953,26 +966,26 @@ function descargarPDF() {
     .ok{color:#1A7A4A;font-size:14px;margin-top:20px;}
     .disclaimer{font-size:10px;color:#999;border-top:1px solid #eee;margin-top:30px;padding-top:10px;}
   </style></head><body>
-    <h1>Contrata Seguro — Informe de Consulta</h1>
+    <h1>Contrata Seguro â Informe de Consulta</h1>
     <p><strong>Persona:</strong> ${nombre}</p>
     <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-AR')}</p>
-    <p><strong>Total causas:</strong> ${causas.length} | SCBA: ${resultadoActual.causas_scba||0} · PJN: ${resultadoActual.causas_pjn||0}</p>
+    <p><strong>Total causas:</strong> ${causas.length} | SCBA: ${resultadoActual.causas_scba||0} Â· PJN: ${resultadoActual.causas_pjn||0}</p>
     <h2>Causas encontradas</h2>
     ${causas.length === 0
-      ? '<p class="ok">✓ Sin antecedentes laborales encontrados en SCBA ni PJN.</p>'
+      ? '<p class="ok">â Sin antecedentes laborales encontrados en SCBA ni PJN.</p>'
       : causas.map((c,i) => `<div class="causa">
           <strong>[${i+1}] ${c.caratula}</strong>
           <div class="meta">
-            ${c.expediente?`Exp: ${c.expediente} · `:''}
-            ${c.juzgado?`Jdo: ${c.juzgado} · `:''}
-            ${c.estado?`Estado: ${c.estado} · `:''}
-            ${c.fecha_inicio?`Inicio: ${c.fecha_inicio} · `:''}
-            ${c.ultima_actuacion?`Últ.act: ${c.ultima_actuacion}`:''}
+            ${c.expediente?`Exp: ${c.expediente} Â· `:''}
+            ${c.juzgado?`Jdo: ${c.juzgado} Â· `:''}
+            ${c.estado?`Estado: ${c.estado} Â· `:''}
+            ${c.fecha_inicio?`Inicio: ${c.fecha_inicio} Â· `:''}
+            ${c.ultima_actuacion?`Ãlt.act: ${c.ultima_actuacion}`:''}
             <br>Fuente: ${c.fuente||'SCBA'}
           </div>
         </div>`).join('')
     }
-    <div class="disclaimer">Datos de fuentes públicas del SCBA y PJN. Usar como elemento de análisis y no como único criterio de decisión. contrata-seguro.com.ar</div>
+    <div class="disclaimer">Datos de fuentes pÃºblicas del SCBA y PJN. Usar como elemento de anÃ¡lisis y no como Ãºnico criterio de decisiÃ³n. contrata-seguro.com.ar</div>
   </body></html>`;
 
   const ventana = window.open('', '_blank');
@@ -987,16 +1000,16 @@ if (urlParams.get('pago') === 'ok') {
   setTimeout(() => {
     if (usuario) {
       showPage('panel');
-      alert('¡Pago aprobado! Tus créditos ya están disponibles.');
+      alert('Â¡Pago aprobado! Tus crÃ©ditos ya estÃ¡n disponibles.');
     }
   }, 1000);
 }
 
-// Manejar confirmación de email via URL hash
+// Manejar confirmaciÃ³n de email via URL hash
 (function() {
   const hash = window.location.hash;
   if (hash.includes('access_token') || hash.includes('type=signup') || hash.includes('type=recovery')) {
-    // Supabase maneja el token automáticamente, solo redirigir limpio
+    // Supabase maneja el token automÃ¡ticamente, solo redirigir limpio
     if (sb) {
       sb.auth.getSession().then(({ data: { session } }) => {
         if (session) {
