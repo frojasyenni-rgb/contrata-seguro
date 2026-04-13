@@ -2,15 +2,19 @@
 CONTRATA SEGURO - API Backend v2.2
 Flask + Supabase + MercadoPago + SSE streaming + Flujo PJN pendiente
 """
-from flask import Flask, request, jsonify, Response, stream_with_context
+from flask import Flask, request, jsonify, Response, stream_with_context, send_file
 from flask_cors import CORS
 import subprocess, json, os, sys, threading, queue, time
 
 import mercadopago
 from supabase import create_client
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 CORS(app, origins=["*"])
+
+API_SERVICIO = "Contrata Seguro API"
+API_VERSION = "2.2"
 
 SUPABASE_URL    = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY    = os.environ.get("SUPABASE_SERVICE_KEY", "")
@@ -125,11 +129,17 @@ def correr_scraper_stream(nombre, q, dni_cuil=""):
 
 @app.route("/", methods=["GET"])
 def index():
-    return jsonify({"servicio": "Contrata Seguro API", "version": "2.2"})
+    """Sitio en Railway: HTML en raíz; metadatos JSON en /api/info."""
+    return send_file(os.path.join(_BASE_DIR, "index.html"), mimetype="text/html; charset=utf-8")
+
+
+@app.route("/api/info", methods=["GET"])
+def api_info():
+    return jsonify({"servicio": API_SERVICIO, "version": API_VERSION})
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "servicio": API_SERVICIO, "version": API_VERSION})
 
 @app.route("/buscar/stream", methods=["GET"])
 def buscar_stream():
@@ -289,7 +299,7 @@ def crear_pago():
     if plan_key not in PLANES: return jsonify({"error":"Plan invalido"}),400
     plan=PLANES[plan_key]; perfil=get_perfil(user.id)
     if not mp_sdk: return jsonify({"error":"MercadoPago no configurado"}),500
-    pref_data={"items":[{"title":f"Contrata Seguro - {plan['titulo']}","quantity":1,"unit_price":float(plan["precio"]),"currency_id":"ARS"}],"payer":{"email":perfil.get("email","") if perfil else ""},"external_reference":f"{user.id}|{plan_key}","back_urls":{"success":f"{APP_URL}?pago=ok&plan={plan_key}","failure":f"{APP_URL}?pago=error","pending":f"{APP_URL}?pago=pendiente"},"auto_return":"approved","notification_url":"https://web-production-46da7.up.railway.app/webhook/mp","statement_descriptor":"CONTRATA SEGURO"}
+    pref_data={"items":[{"title":f"Contrata Seguro - {plan['titulo']}","quantity":1,"unit_price":float(plan["precio"]),"currency_id":"ARS"}],"payer":{"email":perfil.get("email","") if perfil else ""},"external_reference":f"{user.id}|{plan_key}","back_urls":{"success":f"{APP_URL}?pago=ok&plan={plan_key}","failure":f"{APP_URL}?pago=error","pending":f"{APP_URL}?pago=pendiente"},"auto_return":"approved","notification_url": f"{APP_URL.rstrip('/')}/webhook/mp","statement_descriptor":"CONTRATA SEGURO"}
     result=mp_sdk.preference().create(pref_data); pref=result["response"]
     if supabase:
         try: supabase.table("pagos").insert({"usuario_id":user.id,"mp_preference_id":pref["id"],"tipo":plan_key,"monto":plan["precio"],"creditos_agregados":plan["creditos"],"estado":"pendiente"}).execute()
