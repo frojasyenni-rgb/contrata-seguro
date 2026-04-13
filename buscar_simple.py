@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""CONTRATA SEGURO - v3.2 - Busqueda de antecedentes laborales SCBA+PJN con validacion DNI/CUIL"""
-import requests, os
+"""CONTRATA SEGURO - v3.3 - Busqueda de antecedentes laborales SCBA+PJN con validacion DNI/CUIL"""
+import requests, os, unicodedata
 from bs4 import BeautifulSoup
 import json, time, sys, re
 
@@ -10,6 +10,10 @@ SCBA_PASSWORD = os.environ.get("SCBA_PASSWORD", "Indiabeagle2205")
 NOMBRE = sys.argv[1] if len(sys.argv) > 1 else "MOSTEYRO"
 DNI_CUIL = sys.argv[2] if len(sys.argv) > 2 else ""
 
+def normalizar(texto):
+    """Quita tildes y pasa a mayusculas para comparacion robusta."""
+    return unicodedata.normalize("NFD", texto.upper()).encode("ascii", "ignore").decode("ascii")
+
 def normalizar_dni(v):
     if not v: return ""
     d = re.sub(r'\D', '', v)
@@ -18,7 +22,7 @@ def normalizar_dni(v):
     return ""
 
 DNI_BUSCADO = normalizar_dni(DNI_CUIL)
-PARTES = NOMBRE.upper().split()
+PARTES = [normalizar(p) for p in NOMBRE.upper().split()]
 APELLIDO = PARTES[0]
 FILTRAR_POR = PARTES
 
@@ -36,7 +40,6 @@ SCBA_JURISDICCIONES = [
 HDR = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 BASE = "https://mev.scba.gov.ar"
 TOTAL = sum(len(t) for _, _, t in SCBA_JURISDICCIONES)
-
 SESSION_EXPIRED = ["UsuarioBase", "PasswordBase", "loguin.asp", "Ingrese los datos", "Iniciar Sesion"]
 
 def is_login_page(html):
@@ -46,11 +49,27 @@ def is_login_page(html):
 def progreso(pct, texto, detalle="", causas=0):
     print(f"PROGRESO:{json.dumps({'pct':pct,'texto':texto,'detalle':detalle,'causas':causas})}", flush=True)
 
+def contiene_terminos(texto, terminos):
+    """
+    Verifica que cada termino en 'terminos' aparezca como palabra completa
+    en 'texto'. Robusto contra tildes y caracteres especiales.
+    Usa espacios y bordes de cadena como delimitadores (no \b de regex
+    que falla con caracteres no-ASCII).
+    """
+    t = " " + normalizar(texto) + " "
+    return all((" " + p + " ") in t or
+               t.startswith(p + " ") or
+               t.endswith(" " + p)
+               for p in terminos)
+
 def es_actor(actor_parte):
-    return bool(actor_parte) and all(
-        re.search(r"\b" + re.escape(p) + r"\b", actor_parte)
-        for p in FILTRAR_POR
-    )
+    """
+    Retorna True si todos los terminos buscados aparecen como palabras
+    completas en la parte ANTES del C/ (lado actor).
+    """
+    if not actor_parte:
+        return False
+    return contiene_terminos(actor_parte, FILTRAR_POR)
 
 def extraer_nids(html):
     return [(m.group(1), m.group(2).strip())
@@ -102,10 +121,30 @@ def parsear_causas(html, depto, tribunal, gam):
         celdas = [c.get_text(" ", strip=True) for c in fila.find_all("td")]
         if len(celdas) < 2 or len(celdas[0]) < 5: continue
         caratula = celdas[0]
-        cn = caratula.upper()
-        sep = cn.find(" C/ ")
-        actor_parte = cn[:sep] if sep >= 0 else ""
-        rol = "ACTOR" if es_actor(actor_parte) else "DEMANDADO"
+        cn_norm = normalizar(caratula)
+
+        # Encontrar el C/ como separador actor/demandado
+        sep = cn_norm.find(" C/ ")
+        if sep < 0:
+            # Intentar variantes: "C/", "C /"
+            for variante in [" C/", "C/ ", "C /"]:
+                sep = cn_norm.find(variante)
+                if sep >= 0: break
+
+        actor_parte = cn_norm[:sep] if sep >= 0 else cn_norm
+
+        # Determinar rol: el buscado debe estar ANTES del C/
+        if es_actor(actor_parte):
+            rol = "ACTOR"
+        elif contiene_terminos(cn_norm[sep+1:] if sep >= 0 else "", FILTRAR_POR):
+            rol = "DEMANDADO"
+        else:
+            # No matchea ni como actor ni demandado - igual incluir si nombre aparece en caratula
+            if not contiene_terminos(cn_norm, FILTRAR_POR):
+                ni += 1
+                continue
+            rol = "INDETERMINADO"
+
         nid, g = nids[ni] if ni < len(nids) else ("", gam.strip())
         causas.append({
             "caratula": caratula,
@@ -122,11 +161,6 @@ def parsear_causas(html, depto, tribunal, gam):
             "_gam": g,
         })
         ni += 1
-    if len(FILTRAR_POR) > 1:
-        causas = [c for c in causas if all(
-            re.search(r"\b" + re.escape(p) + r"\b", c["caratula"].upper())
-            for p in FILTRAR_POR
-        )]
     return causas
 
 def buscar_scba():
@@ -189,8 +223,15 @@ def buscar_pjn():
                 for fila in soup2.select("table tr")[1:]:
                     celdas = [td.get_text(strip=True) for td in fila.find_all("td")]
                     if len(celdas) < 3 or len(celdas[0]) < 5: continue
-                    cn = celdas[0].upper(); sep = cn.find(" C/ ")
-                    actor_parte = cn[:sep] if sep >= 0 else ""
+                    cn_norm = normalizar(celdas[0])
+                    sep = cn_norm.find(" C/ ")
+                    actor_parte = cn_norm[:sep] if sep >= 0 else cn_norm
+                    if es_actor(actor_parte):
+                        rol = "ACTOR"
+                    elif sep >= 0 and contiene_terminos(cn_norm[sep+1:], FILTRAR_POR):
+                        rol = "DEMANDADO"
+                    else:
+                        rol = "INDETERMINADO"
                     causas.append({
                         "caratula": celdas[0],
                         "expediente": celdas[1] if len(celdas) > 1 else "",
@@ -199,7 +240,7 @@ def buscar_pjn():
                         "ultima_actuacion": celdas[4] if len(celdas) > 4 else "",
                         "estado": celdas[5] if len(celdas) > 5 else "",
                         "fuente": "PJN",
-                        "rol": "ACTOR" if es_actor(actor_parte) else "DEMANDADO",
+                        "rol": rol,
                         "dni_actor": "", "dni_validacion": "no_validado",
                     })
             except Exception: continue
