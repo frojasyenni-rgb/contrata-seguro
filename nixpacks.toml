@@ -7,3 +7,7 @@ cmds = [
   "python -m pip install --no-cache-dir 'mercadopago>=2.2.0'",
   'python -c "import mercadopago"',
 ]
+
+# Sin shell, Gunicorn recibe el literal "$PORT". sh -c expande PORT en runtime.
+[start]
+cmd = 'sh -c "exec gunicorn api:app --bind 0.0.0.0:${PORT:-8080} --timeout 300 --workers 1"'

@@ -10,4 +10,5 @@ COPY . .
 ENV PORT=8080
 EXPOSE 8080
 
-CMD gunicorn api:app --bind 0.0.0.0:${PORT} --timeout 300 --workers 1
+# Exec form: sin shell, ${PORT} no se expande. Forzamos sh -c para leer PORT en runtime (Railway, etc.).
+CMD ["sh", "-c", "exec gunicorn api:app --bind 0.0.0.0:${PORT:-8080} --timeout 300 --workers 1"]
