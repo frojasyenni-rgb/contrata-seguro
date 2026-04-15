@@ -32,6 +32,9 @@ PLANES = {
     "credito_5":   {"precio": 2500,  "creditos": 1,    "titulo": "Por consulta"},
 }
 
+# Mercado Pago: statement_descriptor max 13 caracteres (doc oficial).
+_MP_STATEMENT_DESCRIPTOR = "CONTRATA SEGU"
+
 def get_perfil(user_id):
     if not supabase: return None
     try:
@@ -299,12 +302,24 @@ def crear_pago():
     if plan_key not in PLANES: return jsonify({"error":"Plan invalido"}),400
     plan=PLANES[plan_key]; perfil=get_perfil(user.id)
     if not mp_sdk: return jsonify({"error":"MercadoPago no configurado"}),500
-    pref_data={"items":[{"title":f"Contrata Seguro - {plan['titulo']}","quantity":1,"unit_price":float(plan["precio"]),"currency_id":"ARS"}],"payer":{"email":perfil.get("email","") if perfil else ""},"external_reference":f"{user.id}|{plan_key}","back_urls":{"success":f"{APP_URL}?pago=ok&plan={plan_key}","failure":f"{APP_URL}?pago=error","pending":f"{APP_URL}?pago=pendiente"},"auto_return":"approved","notification_url": f"{APP_URL.rstrip('/')}/webhook/mp","statement_descriptor":"CONTRATA SEGURO"}
-    result=mp_sdk.preference().create(pref_data); pref=result["response"]
+    payer_email = (perfil.get("email") if perfil else None) or getattr(user, "email", None) or ""
+    pref_data={"items":[{"title":f"Contrata Seguro - {plan['titulo']}","quantity":1,"unit_price":float(plan["precio"]),"currency_id":"ARS"}],"payer":{"email":payer_email},"external_reference":f"{user.id}|{plan_key}","back_urls":{"success":f"{APP_URL}?pago=ok&plan={plan_key}","failure":f"{APP_URL}?pago=error","pending":f"{APP_URL}?pago=pendiente"},"auto_return":"approved","notification_url": f"{APP_URL.rstrip('/')}/webhook/mp","statement_descriptor":_MP_STATEMENT_DESCRIPTOR}
+    result=mp_sdk.preference().create(pref_data)
+    status=result.get("status")
+    pref=result.get("response") or {}
+    if status not in (200, 201) or not pref.get("id"):
+        err_body=pref if isinstance(pref,dict) else {}
+        msg=err_body.get("message") or err_body.get("error") or err_body.get("cause") or str(result)
+        print(f"[MP] preferencia rechazada status={status} body={err_body}", flush=True)
+        return jsonify({"error":f"MercadoPago: {msg}"}),502
+    checkout_url=pref.get("sandbox_init_point") or pref.get("init_point")
+    if not checkout_url:
+        print(f"[MP] preferencia sin URL de checkout: keys={list(pref.keys())}", flush=True)
+        return jsonify({"error":"MercadoPago no devolvio URL de pago (init_point)"}),502
     if supabase:
         try: supabase.table("pagos").insert({"usuario_id":user.id,"mp_preference_id":pref["id"],"tipo":plan_key,"monto":plan["precio"],"creditos_agregados":plan["creditos"],"estado":"pendiente"}).execute()
         except: pass
-    return jsonify({"preference_id":pref["id"],"init_point":pref["init_point"]})
+    return jsonify({"preference_id":pref["id"],"init_point":checkout_url,"sandbox_init_point":pref.get("sandbox_init_point"),"init_point_prod":pref.get("init_point")})
 
 @app.route("/webhook/mp", methods=["POST"])
 def webhook_mp():

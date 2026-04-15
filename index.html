@@ -140,6 +140,8 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 .alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none;}
 .alert.error{background:var(--rojo-c);color:var(--rojo);display:block;}
 .alert.success{background:var(--verde-c);color:var(--verde);display:block;}
+#cuenta-alert.cuenta-msg-in{animation:cuentaMsgIn 0.22s ease-out;}
+@keyframes cuentaMsgIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
 
 /* MISC */
 .causa-card.actor{border-left-color:var(--verde) !important;background:linear-gradient(135deg,#f0fff4 0%,#e8f8ee 100%);}.badge-actor{background:#1A7A4A;color:white;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;margin-left:6px;letter-spacing:0.5px;}
@@ -362,7 +364,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
     <div id="tab-cuenta" style="display:none">
       <div class="card">
         <div class="card-title">Mis datos</div>
-        <div class="alert" id="cuenta-alert"></div>
+        <div class="alert" id="cuenta-alert" role="status" aria-live="polite"></div>
         <div class="row">
           <div class="field"><label>Nombre</label><input type="text" id="cuenta-nombre" placeholder="Fernando Rojas"></div>
           <div class="field"><label>Empresa</label><input type="text" id="cuenta-empresa" placeholder="Mi Empresa S.A."></div>
@@ -549,10 +551,10 @@ async function logout() {
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // NAVEGACIÓN
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-function showPage(name) {
+function showPage(name, opts) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(`page-${name}`).classList.add('active');
-  if (name === 'panel') cargarPanel();
+  if (name === 'panel') cargarPanel(opts || {});
   window.scrollTo(0,0);
 }
 
@@ -631,7 +633,7 @@ function unhoverPlan(card) {
   const plan = perfil.plan || 'gratis';
   const creditos = perfil.creditos || 0;
   if (plan !== 'profesional' && !perfil.suscripcion_activa && creditos <= 0) {
-    if (confirm('No ten\u00e9s cr\u00e9ditos disponibles. \u00bfQuer\u00e9s ver los planes?')) showPage('panel');
+    if (confirm('No ten\u00e9s cr\u00e9ditos disponibles. \u00bfQuer\u00e9s ver los planes?')) showPage('panel', { initialTab: 'planes' });
     return;
   }
   document.getElementById('btn-buscar').disabled = true;
@@ -781,7 +783,8 @@ function mostrarResultados(data) {
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // PANEL
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-async function cargarPanel() {
+async function cargarPanel(opts) {
+  opts = opts || {};
   if (!usuario) { showPage('inicio'); showModal('login'); return; }
 
   // Recargar perfil
@@ -801,10 +804,19 @@ async function cargarPanel() {
         <div style="font-size:13px;font-weight:500;color:var(--azul)">Plan actual: <strong>${planNombres[plan]||plan}</strong></div>
         <div style="font-size:12px;color:var(--gris-500);margin-top:2px">${plan==='profesional'?'Consultas ilimitadas':creditos+' consultas disponibles'}</div>
       </div>
-      ${plan!=='profesional'?`<button class="btn btn-primary btn-sm" onclick="switchTab(document.querySelectorAll('.tab')[1],'tab-planes')">Mejorar plan</button>`:''}
+      ${plan!=='profesional'?`<button class="btn btn-primary btn-sm" onclick="switchTab(document.querySelectorAll('#page-panel .tab')[1],'tab-planes');actualizarPlanBanner()">Mejorar plan</button>`:''}
     </div>`;
 
   cargarHistorial();
+
+  if (opts.initialTab === 'planes') {
+    const tabsBar = document.querySelector('#page-panel .tabs');
+    const btnPlanes = tabsBar ? tabsBar.querySelectorAll('.tab')[1] : null;
+    if (btnPlanes) {
+      switchTab(btnPlanes, 'tab-planes');
+      actualizarPlanBanner();
+    }
+  }
 }
 
 async function cargarHistorial() {
@@ -856,28 +868,51 @@ async function verConsulta(id) {
 
 async function cargarCuenta() {
   if (!perfil) return;
+  const aviso = document.getElementById('cuenta-alert');
+  if (aviso) {
+    aviso.className = 'alert';
+    aviso.textContent = '';
+  }
   document.getElementById('cuenta-nombre').value = perfil.nombre || '';
   document.getElementById('cuenta-empresa').value = perfil.empresa || '';
   document.getElementById('cuenta-cuit').value = perfil.cuit || '';
   document.getElementById('cuenta-email').value = usuario?.email || '';
 }
 
+let _cuentaGuardadoTimer = null;
 async function guardarCuenta() {
   if (!sb || !usuario) return;
-  const alert = document.getElementById('cuenta-alert');
+  const el = document.getElementById('cuenta-alert');
+  if (!el) return;
+  if (_cuentaGuardadoTimer) {
+    clearTimeout(_cuentaGuardadoTimer);
+    _cuentaGuardadoTimer = null;
+  }
+  el.className = 'alert';
+  el.textContent = '';
+
   const { error } = await sb.from('perfiles').update({
-    nombre: document.getElementById('cuenta-nombre').value,
-    empresa: document.getElementById('cuenta-empresa').value,
-    cuit: document.getElementById('cuenta-cuit').value,
+    nombre: document.getElementById('cuenta-nombre').value.trim(),
+    empresa: document.getElementById('cuenta-empresa').value.trim(),
+    cuit: document.getElementById('cuenta-cuit').value.trim(),
   }).eq('id', usuario.id);
 
   if (error) {
-    alertEl.className = 'alert error';
-    alertEl.textContent = 'Error al guardar';
+    el.className = 'alert error cuenta-msg-in';
+    el.textContent = error.message || 'No se pudieron guardar los datos. Probá de nuevo.';
   } else {
-    alertEl.className = 'alert success';
-    alertEl.textContent = 'Datos guardados correctamente';
-    setTimeout(() => alert.className = 'alert', 2000);
+    const { data: perfilNuevo } = await sb.from('perfiles').select('*').eq('id', usuario.id).single();
+    if (perfilNuevo) {
+      perfil = perfilNuevo;
+      actualizarHeaderUsuario();
+    }
+    el.className = 'alert success cuenta-msg-in';
+    el.textContent = 'Listo: guardamos tus datos en tu cuenta.';
+    _cuentaGuardadoTimer = setTimeout(() => {
+      el.className = 'alert';
+      el.textContent = '';
+      _cuentaGuardadoTimer = null;
+    }, 5000);
   }
 }
 
@@ -913,10 +948,11 @@ async function pagar(planKey) {
       body: JSON.stringify({ plan: planKey })
     });
     const data = await resp.json();
-    if (data.init_point) {
-      window.open(data.init_point, '_blank');
+    const payUrl = data.init_point || data.sandbox_init_point;
+    if (payUrl) {
+      window.open(payUrl, '_blank');
     } else {
-      alert(data.error || 'Error al procesar el pago');
+      alert(data.error || ('Error al procesar el pago' + (resp.ok ? '' : ' (' + resp.status + ')')));
     }
   } catch(e) {
     alert('Error de conexión: ' + e.message);
