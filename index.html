@@ -168,7 +168,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
     <button class="nav-btn nav-btn-solid" onclick="showModal('registro')">Registrarse gratis</button>
   </div>
   <div class="header-nav" id="header-user" style="display:none">
-    <div class="creditos-badge" id="creditos-badge">â 3 consultas</div>
+    <div class="creditos-badge" id="creditos-badge">● 3 consultas</div>
     <button class="nav-btn nav-btn-outline" onclick="showPage('panel')">Mi panel</button>
     <button class="nav-btn nav-btn-outline" onclick="logout()">Salir</button>
   </div>
@@ -182,9 +182,9 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <div class="modal-sub">Ingresá con tu cuenta para acceder a tus consultas</div>
       <div class="alert" id="login-alert"></div>
       <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="tu@email.com"></div>
-      <div class="field"><label>ContraseÃ±a</label><input type="password" id="login-password" placeholder="â¢â¢â¢â¢â¢â¢â¢â¢"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="login-password" placeholder="••••••••"></div>
       <button class="btn btn-primary" onclick="login()">Ingresar</button>
-      <div class="modal-switch">Â¿No tenés cuenta? <a onclick="toggleModal('registro')">Registrarse gratis</a></div>
+      <div class="modal-switch">¿No tenés cuenta? <a onclick="toggleModal('registro')">Registrarse gratis</a></div>
     </div>
     <div id="modal-registro" style="display:none">
       <div class="modal-title">Crear cuenta</div>
@@ -192,9 +192,9 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <div class="alert" id="reg-alert"></div>
       <div class="field"><label>Nombre completo</label><input type="text" id="reg-nombre" placeholder="Fernando Rojas"></div>
       <div class="field"><label>Email</label><input type="email" id="reg-email" placeholder="tu@email.com"></div>
-      <div class="field"><label>ContraseÃ±a</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres"></div>
       <button class="btn btn-primary" onclick="registro()">Crear cuenta gratis</button>
-      <div class="modal-switch">Â¿Ya tenés cuenta? <a onclick="toggleModal('login')">Iniciar sesión</a></div>
+      <div class="modal-switch">¿Ya tenés cuenta? <a onclick="toggleModal('login')">Iniciar sesión</a></div>
     </div>
     <div style="text-align:right;margin-top:12px"><a class="link" style="font-size:12px" onclick="closeModal()">Cerrar</a></div>
   </div>
@@ -210,7 +210,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <p>Consultá si una persona tiene juicios laborales en la Provincia de Buenos Aires y Capital Federal. Resultado en minutos.</p>
     </div>
 
-    <!-- BÃSQUEDA -->
+    <!-- BÚSQUEDA -->
     <div class="card">
       <div class="search-row">
         <div class="field">
@@ -272,7 +272,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar créditos</button>
         </div>
         <div class="plan-card featured">
-          <div class="plan-featured-badge">MÃS POPULAR</div>
+          <div class="plan-featured-badge">MÁS POPULAR</div>
           <div class="plan-nombre">Profesional</div>
           <div class="plan-precio">$45.000<span>/mes</span></div>
           <div class="plan-consultas">Consultas ilimitadas</div>
@@ -336,7 +336,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
           <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar créditos</button>
         </div>
         <div class="plan-card featured">
-          <div class="plan-featured-badge">MÃS POPULAR</div>
+          <div class="plan-featured-badge">MÁS POPULAR</div>
           <div class="plan-nombre">Profesional</div>
           <div class="plan-precio">$45.000<span>/mes</span></div>
           <div class="plan-consultas">Consultas ilimitadas</div>
@@ -443,7 +443,7 @@ function actualizarHeaderUsuario() {
   const creditos = perfil?.creditos || 0;
   const plan = perfil?.plan || 'gratis';
   const txt = plan === 'profesional' ? '∞ ilimitadas' : `${creditos} consulta${creditos !== 1 ? 's' : ''}`;
-  document.getElementById('creditos-badge').textContent = `â ${txt}`;
+  document.getElementById('creditos-badge').textContent = `● ${txt}`;
 }
 
 function actualizarPlanBanner() {
@@ -477,7 +477,7 @@ async function login() {
   const { error } = await sb.auth.signInWithPassword({ email, password: pass });
   if (error) {
     alertEl.className = 'alert error';
-    alertEl.textContent = 'Email o contraseÃ±a incorrectos';
+    alertEl.textContent = 'Email o contraseña incorrectos';
   } else {
     closeModal();
     // Si había un pago pendiente, ejecutarlo
@@ -498,7 +498,7 @@ async function registro() {
 
   if (!nombre || !email || pass.length < 6) {
     alertEl.className = 'alert error';
-    alertEl.textContent = 'Completá todos los campos (contraseÃ±a mínimo 6 caracteres)';
+    alertEl.textContent = 'Completá todos los campos (contraseña mínimo 6 caracteres)';
     return;
   }
 
@@ -532,11 +532,11 @@ async function registro() {
   const { error: loginError } = await sb.auth.signInWithPassword({ email, password: pass });
   if (!loginError) {
     alertEl.className = 'alert success';
-    alertEl.textContent = 'Â¡Cuenta creada! Iniciando sesión...';
+    alertEl.textContent = '¡Cuenta creada! Iniciando sesión...';
     setTimeout(() => { closeModal(); }, 1200);
   } else {
     alertEl.className = 'alert success';
-    alertEl.textContent = 'Â¡Cuenta creada! Ya podés iniciar sesión.';
+    alertEl.textContent = '¡Cuenta creada! Ya podés iniciar sesión.';
   }
 }
 
@@ -547,7 +547,7 @@ async function logout() {
 }
 
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// NAVEGACIÃN
+// NAVEGACIÓN
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -590,7 +590,7 @@ function switchTab(btn, tabId) {
 }
 
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// BÃSQUEDA
+// BÚSQUEDA
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // ââ Hover planes ââââââââââââââââââââââââââââââââââââ
 function hoverPlan(card) {
@@ -765,7 +765,7 @@ function mostrarResultados(data) {
           ${c.expediente?`<div class="causa-field"><b>Expediente</b>${c.expediente}</div>`:''}
           ${c.juzgado?`<div class="causa-field"><b>Juzgado</b>${c.juzgado}</div>`:''}
           ${c.fecha_inicio?`<div class="causa-field"><b>Inicio</b>${c.fecha_inicio}</div>`:''}
-          ${c.ultima_actuacion?`<div class="causa-field"><b>Ãltima actuación</b>${c.ultima_actuacion}</div>`:''}
+          ${c.ultima_actuacion?`<div class="causa-field"><b>Última actuación</b>${c.ultima_actuacion}</div>`:''}
         </div>
       </div>`;
     }).join('');
@@ -980,7 +980,7 @@ function descargarPDF() {
             ${c.juzgado?`Jdo: ${c.juzgado} · `:''}
             ${c.estado?`Estado: ${c.estado} · `:''}
             ${c.fecha_inicio?`Inicio: ${c.fecha_inicio} · `:''}
-            ${c.ultima_actuacion?`Ãlt.act: ${c.ultima_actuacion}`:''}
+            ${c.ultima_actuacion?`Últ.act: ${c.ultima_actuacion}`:''}
             <br>Fuente: ${c.fuente||'SCBA'}
           </div>
         </div>`).join('')
@@ -1000,7 +1000,7 @@ if (urlParams.get('pago') === 'ok') {
   setTimeout(() => {
     if (usuario) {
       showPage('panel');
-      alert('Â¡Pago aprobado! Tus créditos ya están disponibles.');
+      alert('¡Pago aprobado! Tus créditos ya están disponibles.');
     }
   }, 1000);
 }
