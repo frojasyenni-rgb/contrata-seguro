@@ -3,6 +3,7 @@
 import requests, os, unicodedata
 from bs4 import BeautifulSoup
 import json, time, sys, re
+from urllib.parse import urljoin
 
 # Credenciales solo por entorno (p. ej. Railway); nunca en el código fuente.
 SCBA_USUARIO = (os.environ.get("SCBA_USUARIO") or "").strip()
@@ -59,10 +60,22 @@ SCBA_JURISDICCIONES = [
 HDR = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 BASE = "https://mev.scba.gov.ar"
 TOTAL = sum(len(t) for _, _, t in SCBA_JURISDICCIONES)
-SESSION_EXPIRED = ["UsuarioBase", "PasswordBase", "loguin.asp", "Ingrese los datos", "Iniciar Sesion"]
-
 def is_login_page(html):
-    return any(m.lower() in html.lower() for m in SESSION_EXPIRED)
+    """
+    Detecta pantalla de login SCBA por estructura del formulario.
+    Evita falsos positivos por menciones sueltas a 'loguin.asp' en links/scripts.
+    """
+    if not html:
+        return True
+    t = html.lower()
+    señales = [
+        'name="usuariobase"',
+        "name='usuariobase'",
+        'name="passwordbase"',
+        "name='passwordbase'",
+        "ingrese los datos del usuario",
+    ]
+    return any(s in t for s in señales)
 
 def progreso(pct, texto, detalle="", causas=0):
     print(f"PROGRESO:{json.dumps({'pct':pct,'texto':texto,'detalle':detalle,'causas':causas})}", flush=True)
@@ -90,6 +103,8 @@ def _ids_login_scba():
         ids.append(SCBA_DEPTO_REGISTRO)
     ids.extend(["", "0"])
     ids.extend([dep_id for _, dep_id, _ in SCBA_JURISDICCIONES])
+    # Algunas instalaciones legacy de MEV usan siglas en el selector "Creado en".
+    ids.extend(["LP", "SI", "LZ", "QM", "AV", "SM", "MO", "LM"])
     # Unicos preservando orden
     out = []
     seen = set()
@@ -104,28 +119,60 @@ def _ids_login_scba():
 
 def do_login(s):
     try:
-        # Intento base (Todos los deptos)
-        r = s.post(
-            f"{BASE}/loguin.asp",
-            data={"UsuarioBase": SCBA_USUARIO, "PasswordBase": SCBA_PASSWORD},
-            timeout=15,
-        )
-        if not is_login_page(r.text):
-            return True
+        login_url = f"{BASE}/loguin.asp"
+        r0 = s.get(login_url, timeout=15)
+        if not r0.ok:
+            return False
 
-        # Fallback: algunos usuarios requieren seleccionar depto de registro.
-        for dep_id in _ids_login_scba():
-            payload = {
-                "UsuarioBase": SCBA_USUARIO,
-                "PasswordBase": SCBA_PASSWORD,
-                # Variantes defensivas de nombre de campo observadas en portales legacy.
-                "pidDepartamento": dep_id,
-                "Departamento": dep_id,
-                "CreadoEn": dep_id,
-                "depto": dep_id,
-            }
-            r2 = s.post(f"{BASE}/loguin.asp", data=payload, timeout=15)
-            if not is_login_page(r2.text):
+        soup = BeautifulSoup(r0.text, "html.parser")
+        form = soup.find("form")
+        action = form.get("action", "loguin.asp") if form else "loguin.asp"
+        post_url = urljoin(login_url, action)
+
+        payload_base = {}
+        if form:
+            for inp in form.find_all("input"):
+                name = (inp.get("name") or "").strip()
+                if not name:
+                    continue
+                tipo = (inp.get("type") or "text").lower()
+                if tipo in ("submit", "button", "image"):
+                    continue
+                payload_base[name] = inp.get("value", "")
+
+        payload_base["UsuarioBase"] = SCBA_USUARIO
+        payload_base["PasswordBase"] = SCBA_PASSWORD
+
+        # Identificar el nombre real del selector de depto en el formulario.
+        dept_select_name = ""
+        if form:
+            for sel in form.find_all("select"):
+                nm = (sel.get("name") or "").strip()
+                if nm:
+                    dept_select_name = nm
+                    break
+
+        intentos_depto = [""] + _ids_login_scba()
+        for dep_id in intentos_depto:
+            payload = dict(payload_base)
+            if dept_select_name:
+                payload[dept_select_name] = dep_id
+            # Variantes defensivas de nombre de campo (instancias legacy).
+            payload["pidDepartamento"] = dep_id
+            payload["Departamento"] = dep_id
+            payload["CreadoEn"] = dep_id
+            payload["depto"] = dep_id
+
+            r = s.post(
+                post_url,
+                data=payload,
+                timeout=20,
+                headers={"Referer": login_url, "Origin": BASE},
+            )
+            url_fin = (r.url or "").lower()
+            if "posloguin.asp" in url_fin:
+                return True
+            if not is_login_page(r.text):
                 return True
         return False
     except Exception:
