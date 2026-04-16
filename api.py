@@ -98,27 +98,48 @@ def guardar_consulta(usuario_id, nombre, resultado, usar_credito, estado_pjn="ok
         print(f"Error guardando consulta: {e}", flush=True)
         return None
 
-def correr_scraper_stream(nombre, q, dni_cuil=""):
+def _api_scraper_trace(msg):
+    """Visible en logs del contenedor (no en el JSON de acceso HTTP del edge)."""
+    print(f"[API/buscar_stream] {msg}", flush=True, file=sys.stderr)
+
+
+def correr_scraper_stream(nombre, q):
     try:
+        _api_scraper_trace(f"lanzando scraper nombre={nombre!r} (solo nombre, sin DNI/CUIL)")
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
         # stderr del hijo al stderr del proceso Flask/Gunicorn: logs en tiempo real (Railway, local).
         proc = subprocess.Popen(
-            [sys.executable, script, nombre.upper()] + ([dni_cuil] if dni_cuil else []),
+            [sys.executable, script, nombre.upper()],
             stdout=subprocess.PIPE,
             stderr=sys.stderr,
             text=True, bufsize=1,
             cwd=os.path.dirname(os.path.abspath(__file__)),
         )
         resultado_final = None
+        n_progreso = 0
+        n_log = 0
         for line in proc.stdout:
             line = line.strip()
             if line.startswith("PROGRESO:"):
-                try: q.put(("progreso", json.loads(line[9:])))
-                except: pass
+                try:
+                    q.put(("progreso", json.loads(line[9:])))
+                    n_progreso += 1
+                except Exception:
+                    pass
+            elif line.startswith("LOG:"):
+                try:
+                    q.put(("log", json.loads(line[4:])))
+                    n_log += 1
+                except Exception:
+                    pass
             elif line.startswith("RESULTADO:"):
                 try: resultado_final = json.loads(line[10:])
                 except: pass
         proc.wait(timeout=10)
+        _api_scraper_trace(
+            f"scraper terminó returncode={proc.returncode} líneas_progreso={n_progreso} líneas_log={n_log} "
+            f"resultado={'ok' if resultado_final else 'falta'}",
+        )
         if not resultado_final:
             json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resultado.json")
             if os.path.exists(json_path):
@@ -149,9 +170,8 @@ def health():
 
 @app.route("/buscar/stream", methods=["GET"])
 def buscar_stream():
-    nombre   = request.args.get("nombre", "").strip()
-    dni_cuil = request.args.get("dni_cuil", "").strip()
-    token    = request.args.get("token", "")
+    nombre = request.args.get("nombre", "").strip()
+    token = request.args.get("token", "")
     if not nombre or len(nombre) < 2:
         return jsonify({"error": "Nombre invalido"}), 400
 
@@ -175,8 +195,14 @@ def buscar_stream():
                 else: usar_credito = True
         except: pass
 
+    print(
+        f"[API/buscar_stream] petición nombre={nombre!r}",
+        flush=True,
+        file=sys.stderr,
+    )
+
     q = queue.Queue()
-    t = threading.Thread(target=correr_scraper_stream, args=(nombre, q, dni_cuil), daemon=True)
+    t = threading.Thread(target=correr_scraper_stream, args=(nombre, q), daemon=True)
     t.start()
 
     def generate():
@@ -191,6 +217,10 @@ def buscar_stream():
 
             if tipo == "progreso":
                 yield f"data: {json.dumps({'tipo':'progreso', **data})}\n\n"
+
+            elif tipo == "log":
+                # Bitácora del scraper (también en stdout del hijo como LOG:). Ver DevTools → Consola.
+                yield f"data: {json.dumps({'tipo':'log', **data})}\n\n"
 
             elif tipo == "resultado":
                 resultado_para_guardar = data

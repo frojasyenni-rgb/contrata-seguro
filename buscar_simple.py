@@ -6,10 +6,38 @@ import json, time, sys, re, logging
 from urllib.parse import urljoin
 
 
+class _StdoutLogHandler(logging.Handler):
+    """
+    Replica INFO+ al stdout como LOG:{json} para que api.py reenvíe por SSE.
+    Los logs HTTP del edge (Railway, etc.) no incluyen stderr del worker: esto sí viaja en el cuerpo del stream.
+    Desactivar: BUSCAR_SIMPLE_SSE_LOG=0
+    """
+
+    def __init__(self):
+        super().__init__(level=logging.INFO)
+        self._sse_min = getattr(
+            logging,
+            (os.environ.get("BUSCAR_SIMPLE_SSE_LOG_LEVEL") or "INFO").upper(),
+            logging.INFO,
+        )
+
+    def emit(self, record):
+        if record.levelno < self._sse_min:
+            return
+        try:
+            payload = {"lvl": record.levelname, "msg": record.getMessage()}
+            if record.exc_info and record.exc_info[0]:
+                payload["exc_type"] = record.exc_info[0].__name__
+            print(f"LOG:{json.dumps(payload, ensure_ascii=False)}", flush=True)
+        except Exception:
+            self.handleError(record)
+
+
 def _setup_buscar_logger():
     """
-    Logs solo por stderr: no mezclar con stdout (PROGRESO:/RESULTADO:).
-    Nivel: env BUSCAR_SIMPLE_LOG_LEVEL (DEBUG, INFO, WARNING). Por defecto INFO.
+    - stderr: trazas con timestamp (logs del contenedor / Railway "Deploy logs").
+    - stdout LOG: mismos eventos INFO+ en JSON (consumidos por api.py -> SSE tipo 'log').
+    Nivel stderr: BUSCAR_SIMPLE_LOG_LEVEL (default INFO).
     """
     logger = logging.getLogger("buscar_simple")
     if logger.handlers:
@@ -25,6 +53,8 @@ def _setup_buscar_logger():
         )
     )
     logger.addHandler(handler)
+    if (os.environ.get("BUSCAR_SIMPLE_SSE_LOG") or "1").strip() != "0":
+        logger.addHandler(_StdoutLogHandler())
     logger.propagate = False
     return logger
 
@@ -37,7 +67,10 @@ SCBA_PASSWORD = (os.environ.get("SCBA_PASSWORD") or "").strip()
 SCBA_DEPTO_REGISTRO = (os.environ.get("SCBA_DEPTO_REGISTRO") or "").strip()
 
 NOMBRE = sys.argv[1] if len(sys.argv) > 1 else "MOSTEYRO"
-DNI_CUIL = sys.argv[2] if len(sys.argv) > 2 else ""
+if len(sys.argv) > 2:
+    log.warning(
+        "Se ignoró el argumento extra (antes DNI/CUIL): la búsqueda es solo por nombre."
+    )
 
 
 def _abort_sin_credenciales_scba():
@@ -46,7 +79,7 @@ def _abort_sin_credenciales_scba():
     print(msg, file=sys.stderr)
     out = {
         "nombre": NOMBRE,
-        "dni_buscado": DNI_CUIL or None,
+        "dni_buscado": None,
         "total": 0,
         "causas_scba": 0,
         "causas_pjn": 0,
@@ -60,14 +93,6 @@ def _abort_sin_credenciales_scba():
 def normalizar(texto):
     return unicodedata.normalize("NFD", texto.upper()).encode("ascii", "ignore").decode("ascii")
 
-def normalizar_dni(v):
-    if not v: return ""
-    d = re.sub(r'\D', '', v)
-    if len(d) == 11: return d[2:10].lstrip('0') or d[2:10]
-    if 7 <= len(d) <= 8: return d.lstrip('0') or d
-    return ""
-
-DNI_BUSCADO = normalizar_dni(DNI_CUIL)
 PARTES = [normalizar(p) for p in NOMBRE.upper().split()]
 APELLIDO = PARTES[0]
 FILTRAR_POR = PARTES
@@ -120,28 +145,80 @@ def extraer_nids(html):
     return [(m.group(1), m.group(2).strip())
             for m in re.finditer(r'nidCausa=(\d+)[^"]*pidJuzgado=(GAM[\d\s]+)', html, re.IGNORECASE)]
 
-def _ids_login_scba():
-    """
-    Prioriza el depto configurado (si existe) y luego prueba TODOS + deptos conocidos.
-    Esto cubre usuarios creados fuera de 'Todos los Deptos'.
-    """
-    ids = []
-    if SCBA_DEPTO_REGISTRO:
-        ids.append(SCBA_DEPTO_REGISTRO)
-    ids.extend(["", "0"])
-    ids.extend([dep_id for _, dep_id, _ in SCBA_JURISDICCIONES])
-    # Algunas instalaciones legacy de MEV usan siglas en el selector "Creado en".
-    ids.extend(["LP", "SI", "LZ", "QM", "AV", "SM", "MO", "LM"])
-    # Unicos preservando orden
-    out = []
-    seen = set()
-    for v in ids:
-        vv = (v or "").strip()
-        if vv in seen:
+
+def _select_departamento_mev(form):
+    """El <select> de departamento / creado en (no el primer select arbitrario)."""
+    if not form:
+        return None, ""
+    ranked = []
+    for sel in form.find_all("select"):
+        nm = (sel.get("name") or "").strip()
+        if not nm:
             continue
-        seen.add(vv)
-        out.append(vv)
-    return out
+        nml = nm.lower()
+        score = 0
+        if any(
+            x in nml
+            for x in ("depto", "depart", "registr", "creado", "jurisd")
+        ):
+            score = 2
+        elif len(form.find_all("select")) == 1:
+            score = 1
+        ranked.append((score, nm, sel))
+    ranked.sort(key=lambda x: -x[0])
+    if not ranked:
+        return None, ""
+    _, nm, sel = ranked[0]
+    return sel, nm
+
+
+def _valor_opcion_todos_departamentos(sel):
+    """Valor del <option> tipo 'Todos los departamentos', o None si no hay match."""
+    if not sel:
+        return None
+    for opt in sel.find_all("option"):
+        txt = (opt.get_text() or "").strip()
+        tnorm = normalizar(txt).replace(" ", "")
+        raw = opt.get("value")
+        val = "" if raw is None else str(raw).strip()
+        if "TODOS" in tnorm and (
+            "DEPARTAMENTO" in tnorm
+            or "DEPARTAMENT" in tnorm
+            or "DEPTO" in tnorm
+            or "JUZGAD" in tnorm
+            or "DEPART" in tnorm
+        ):
+            return val
+        if tnorm in ("TODOS", "*TODOS*", "-TODOS-", "TODOSLOS"):
+            return val
+    return None
+
+
+def _intentos_valor_departamento_login(form):
+    """
+    Solo 'todos los departamentos' (según el HTML) o vacío — no recorrer cada depto.
+    Override: SCBA_DEPTO_REGISTRO en el entorno.
+    """
+    if SCBA_DEPTO_REGISTRO:
+        v = SCBA_DEPTO_REGISTRO.strip()
+        log.info("SCBA login: usando SCBA_DEPTO_REGISTRO=%r", v)
+        return [v] if v else [""]
+    sel, nm_sel = _select_departamento_mev(form)
+    todos = _valor_opcion_todos_departamentos(sel)
+    if todos is not None:
+        log.info(
+            "SCBA login: opción 'Todos' en select %r → valor=%r",
+            nm_sel,
+            todos,
+        )
+        if todos == "":
+            return [""]
+        return [todos, ""]
+    log.info(
+        "SCBA login: no se detectó opción 'Todos' en %r; solo intento con valor vacío",
+        nm_sel or "(sin select)",
+    )
+    return [""]
 
 
 def do_login(s):
@@ -173,20 +250,13 @@ def do_login(s):
         payload_base["UsuarioBase"] = SCBA_USUARIO
         payload_base["PasswordBase"] = SCBA_PASSWORD
 
-        # Identificar el nombre real del selector de depto en el formulario.
-        dept_select_name = ""
-        if form:
-            for sel in form.find_all("select"):
-                nm = (sel.get("name") or "").strip()
-                if nm:
-                    dept_select_name = nm
-                    break
-
-        intentos_depto = [""] + _ids_login_scba()
+        _, dept_select_name = _select_departamento_mev(form)
+        intentos_depto = _intentos_valor_departamento_login(form)
         log.info(
-            "SCBA login: probando %s combinaciones de departamento (selector=%r)",
+            "SCBA login: %s intento(s) de departamento (selector=%r valores=%s)",
             len(intentos_depto),
             dept_select_name or "(ninguno)",
+            intentos_depto,
         )
         for dep_id in intentos_depto:
             payload = dict(payload_base)
@@ -218,7 +288,7 @@ def do_login(s):
             if not is_login_page(r.text):
                 log.info("SCBA login: OK (ya no es pagina de login) depto=%r", dep_id)
                 return True
-        log.error("SCBA login: fallo tras probar todos los departamentos")
+        log.error("SCBA login: fallo tras probar valores de departamento: %s", intentos_depto)
         return False
     except Exception:
         log.exception("SCBA login: excepcion no controlada")
@@ -243,43 +313,6 @@ def hacer_busqueda(s, gam):
         },
         timeout=20,
     )
-
-def buscar_dni_expediente(s, nid, gam):
-    try:
-        log.debug("SCBA DNI: GET procesales nid=%s gam=%s", nid, gam)
-        r = s.get(f"{BASE}/procesales.asp", params={"nidCausa": nid, "pidJuzgado": gam}, timeout=15)
-        if not r.ok or is_login_page(r.text):
-            log.debug(
-                "SCBA DNI: sin datos (http=%s login_page=%s)",
-                r.status_code,
-                is_login_page(r.text),
-            )
-            return ""
-        soup = BeautifulSoup(r.text, "html.parser")
-        texto = ""
-        for row in soup.find_all("tr"):
-            t = row.get_text(" ", strip=True).upper()
-            if "AUDIENCIA DE VISTA DE CAUSA" in t and "ACTA" in t:
-                texto = t; break
-        if not texto:
-            t = soup.get_text(" ", strip=True).upper()
-            idx = t.find("AUDIENCIA DE VISTA DE CAUSA")
-            if idx >= 0: texto = t[idx:idx+3000]
-        if not texto: return ""
-        m = re.search(r"D\.?N\.?I\.?[:\s#N]*([\d][\d\.\s]{5,9}\d)", texto)
-        if m:
-            raw = m.group(1)
-            if 7 <= len(re.sub(r"[\.\s]", "", raw)) <= 8:
-                return re.sub(r"[\.\s]", "", raw).lstrip("0")
-        return ""
-    except Exception:
-        log.debug("SCBA DNI: excepcion al leer expediente nid=%s", nid, exc_info=True)
-        return ""
-
-def validar_dni(encontrado):
-    if not DNI_BUSCADO: return "no_validado"
-    if not encontrado: return "no_encontrado"
-    return "coincide" if encontrado.lstrip("0") == DNI_BUSCADO.lstrip("0") else "no_coincide"
 
 def parsear_causas(html, depto, tribunal, gam):
     if is_login_page(html):
@@ -388,22 +421,6 @@ def buscar_scba():
                 time.sleep(0.2)
             except Exception:
                 log.exception("SCBA: error en busqueda %s %s %s", depto, tribunal, gam)
-    actores = [c for c in todas if c["rol"] == "ACTOR" and c["_nid"]]
-    if actores:
-        log.info("SCBA: validando DNI en %s expediente(s) como ACTOR", len(actores))
-        progreso(86, f"Verificando DNI ({len(actores)} como actor)...", "", len(todas))
-        for i, c in enumerate(actores):
-            progreso(86 + int((i / len(actores)) * 8), f"DNI {i+1}/{len(actores)}", c["caratula"][:50], len(todas))
-            dni = buscar_dni_expediente(s, c["_nid"], c["_gam"])
-            c["dni_actor"] = dni
-            c["dni_validacion"] = validar_dni(dni)
-            log.debug(
-                "SCBA DNI actor %s/%s validacion=%s",
-                i + 1,
-                len(actores),
-                c["dni_validacion"],
-            )
-            time.sleep(0.4)
     for c in todas:
         c.pop("_nid", None); c.pop("_gam", None)
     log.info("SCBA: fin con %s causa(s) acumuladas", len(todas))
@@ -487,13 +504,7 @@ def buscar_pjn():
 if not SCBA_USUARIO or not SCBA_PASSWORD:
     _abort_sin_credenciales_scba()
 
-log.info(
-    "Inicio busqueda nombre=%r dni_cuil=%r dni_norm=%r filtro_partes=%s",
-    NOMBRE,
-    DNI_CUIL or "",
-    DNI_BUSCADO or "",
-    FILTRAR_POR,
-)
+log.info("Inicio busqueda solo por nombre=%r filtro_partes=%s", NOMBRE, FILTRAR_POR)
 scba = buscar_scba()
 log.info("Tras SCBA: %s causa(s); inicio PJN", len(scba))
 progreso(88, "PJN -- Capital Federal", "Camara Nacional del Trabajo", len(scba))
@@ -502,4 +513,7 @@ log.info("Tras PJN: %s causa(s) estado_pjn=%s", len(pjn), estado_pjn)
 todas = scba + pjn
 progreso(100, "Busqueda completada", f"{len(todas)} causa(s) encontrada(s)", len(todas))
 log.info("Busqueda terminada total=%s (scba=%s pjn=%s)", len(todas), len(scba), len(pjn))
-print(f"RESULTADO:{json.dumps({'nombre':NOMBRE,'dni_buscado':DNI_CUIL or None,'total':len(todas),'causas_scba':len(scba),'causas_pjn':len(pjn),'estado_pjn':estado_pjn,'causas':todas},ensure_ascii=False)}", flush=True)
+print(
+    f"RESULTADO:{json.dumps({'nombre':NOMBRE,'dni_buscado':None,'total':len(todas),'causas_scba':len(scba),'causas_pjn':len(pjn),'estado_pjn':estado_pjn,'causas':todas},ensure_ascii=False)}",
+    flush=True,
+)
