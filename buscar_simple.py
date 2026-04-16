@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CONTRATA SEGURO - v3.4 - Fix parametros POST correctos para SCBA MEV"""
+"""CONTRATA SEGURO - v3.5 - SCBA MEV: login usuario/clave + selección DtoJudElegido en POSLoguin"""
 import requests, os, unicodedata
 from bs4 import BeautifulSoup
 import json, time, sys, re, logging
@@ -115,7 +115,7 @@ TOTAL = sum(len(t) for _, _, t in SCBA_JURISDICCIONES)
 def is_login_page(html):
     """
     Detecta pantalla de login SCBA por estructura del formulario.
-    Evita falsos positivos por menciones sueltas a 'loguin.asp' en links/scripts.
+    El MEV actual usa name=\"usuario\" / \"clave\"; versiones viejas UsuarioBase/PasswordBase.
     """
     if not html:
         return True
@@ -125,6 +125,10 @@ def is_login_page(html):
         "name='usuariobase'",
         'name="passwordbase"',
         "name='passwordbase'",
+        'name="usuario"',
+        "name='usuario'",
+        'name="clave"',
+        "name='clave'",
         "ingrese los datos del usuario",
     ]
     return any(s in t for s in señales)
@@ -140,11 +144,6 @@ def contiene_terminos(texto, terminos):
 def es_actor(actor_parte):
     if not actor_parte: return False
     return contiene_terminos(actor_parte, FILTRAR_POR)
-
-def extraer_nids(html):
-    return [(m.group(1), m.group(2).strip())
-            for m in re.finditer(r'nidCausa=(\d+)[^"]*pidJuzgado=(GAM[\d\s]+)', html, re.IGNORECASE)]
-
 
 def _select_departamento_mev(form):
     """El <select> de departamento / creado en (no el primer select arbitrario)."""
@@ -207,7 +206,7 @@ def _intentos_valor_departamento_login(form):
     todos = _valor_opcion_todos_departamentos(sel)
     if todos is not None:
         log.info(
-            "SCBA login: opción 'Todos' en select %r → valor=%r",
+            "SCBA login: opción 'Todos' en select %r -> valor=%r",
             nm_sel,
             todos,
         )
@@ -219,6 +218,46 @@ def _intentos_valor_departamento_login(form):
         nm_sel or "(sin select)",
     )
     return [""]
+
+
+def _nombres_campos_credencial_login(form):
+    """
+    Devuelve (campo_usuario, campo_clave) según el <form> de loguin.asp.
+    """
+    if not form:
+        return "usuario", "clave"
+    user_field = pass_field = None
+    for inp in form.find_all("input"):
+        nm = (inp.get("name") or "").strip()
+        if not nm:
+            continue
+        tipo = (inp.get("type") or "text").lower()
+        if tipo == "password":
+            pass_field = nm
+        elif tipo in ("text", "email"):
+            user_field = nm
+    return (user_field or "usuario"), (pass_field or "clave")
+
+
+def seleccionar_departamento_judicial(s, dep_id):
+    """
+    Tras el login, el MEV exige el POST del formulario en POSLoguin.asp:
+    TipoDto=CC (departamento judicial), DtoJudElegido=<id numérico del mapa SCBA>.
+    Un POST solo con pidDepartamento no activa la jurisdicción y Busqueda.asp responde
+    \"servicio no disponible para esta jurisdicción\".
+    """
+    dep = str(dep_id).strip()
+    url = f"{BASE}/POSLoguin.asp"
+    return s.post(
+        url,
+        data={
+            "TipoDto": "CC",
+            "DtoJudElegido": dep,
+            "Aceptar": "Aceptar",
+        },
+        timeout=15,
+        headers={"Referer": url, "Origin": BASE},
+    )
 
 
 def do_login(s):
@@ -247,8 +286,9 @@ def do_login(s):
                     continue
                 payload_base[name] = inp.get("value", "")
 
-        payload_base["UsuarioBase"] = SCBA_USUARIO
-        payload_base["PasswordBase"] = SCBA_PASSWORD
+        u_key, p_key = _nombres_campos_credencial_login(form)
+        payload_base[u_key] = SCBA_USUARIO
+        payload_base[p_key] = SCBA_PASSWORD
 
         _, dept_select_name = _select_departamento_mev(form)
         intentos_depto = _intentos_valor_departamento_login(form)
@@ -283,7 +323,7 @@ def do_login(s):
                 is_login_page(r.text),
             )
             if "posloguin.asp" in url_fin:
-                log.info("SCBA login: OK (redirect posloguin) depto=%r", dep_id)
+                log.info("SCBA login: OK (redirect POSLoguin) depto=%r", dep_id)
                 return True
             if not is_login_page(r.text):
                 log.info("SCBA login: OK (ya no es pagina de login) depto=%r", dep_id)
@@ -314,6 +354,26 @@ def hacer_busqueda(s, gam):
         timeout=20,
     )
 
+def _siguiente_tr_bloque_resultado(fila):
+    """
+    Cada causa en MEV ocupa dos <tr> dentro del mismo <tbody>.
+    html.parser deja el <tbody> explícito; sin él, se usa la tabla padre.
+    """
+    tbody = fila.find_parent("tbody")
+    if tbody:
+        rows = tbody.find_all("tr", recursive=False)
+    else:
+        tbl = fila.find_parent("table")
+        if not tbl:
+            return None
+        rows = tbl.find_all("tr", recursive=False)
+    try:
+        i = rows.index(fila)
+    except ValueError:
+        return None
+    return rows[i + 1] if i + 1 < len(rows) else None
+
+
 def parsear_causas(html, depto, tribunal, gam):
     if is_login_page(html):
         log.warning(
@@ -323,27 +383,51 @@ def parsear_causas(html, depto, tribunal, gam):
             gam,
         )
         return []
+    low = html.lower()
+    if "no esta disponible" in low or "no está disponible" in low:
+        log.debug(
+            "SCBA parsear: MEV indica servicio no disponible (%s / %s gam=%s)",
+            depto,
+            tribunal,
+            gam,
+        )
+        return []
     soup = BeautifulSoup(html, "html.parser")
-    nids = extraer_nids(html)
-    causas, ni = [], 0
-    for fila in soup.find_all("tr"):
-        celdas = [c.get_text(" ", strip=True) for c in fila.find_all("td")]
-        if len(celdas) < 2 or len(celdas[0]) < 5: continue
-        caratula = celdas[0]
-        cn = normalizar(caratula)
+    causas = []
+    vistos = set()
+    href_nid = re.compile(r"nidCausa=(\d+)", re.I)
+    href_gam = re.compile(r"pidJuzgado=(GAM\d+)", re.I)
 
-        # Encontrar separador C/ (con variantes)
+    for fila in soup.find_all("tr"):
+        enlace = fila.find(
+            "a",
+            href=lambda h: h and "nidcausa=" in h.lower() and "pidjuzgado=" in h.lower(),
+        )
+        if not enlace:
+            continue
+        # Evitar <tr> contenedores con tablas anidadas: el enlace debe pertenecer a esta fila.
+        if enlace.find_parent("tr") is not fila:
+            continue
+        href = enlace.get("href") or ""
+        mc = href_nid.search(href)
+        mg = href_gam.search(href)
+        if not mc or not mg:
+            continue
+        nid = mc.group(1)
+        if nid in vistos:
+            continue
+        caratula = enlace.get_text(" ", strip=True)
+        if len(caratula) < 8:
+            continue
+        cn = normalizar(caratula)
         sep = -1
-        for variante in [" C/ ", " C/", "C/ "]:
+        for variante in (" C/ ", " C/", "C/ "):
             idx = cn.find(variante)
             if idx >= 0:
                 sep = idx
                 break
-
         actor_parte = cn[:sep] if sep >= 0 else cn
-        demandado_parte = cn[sep+1:] if sep >= 0 else ""
-
-        # Determinar rol
+        demandado_parte = cn[sep + 1 :] if sep >= 0 else ""
         if es_actor(actor_parte):
             rol = "ACTOR"
         elif contiene_terminos(demandado_parte, FILTRAR_POR):
@@ -351,25 +435,42 @@ def parsear_causas(html, depto, tribunal, gam):
         elif contiene_terminos(cn, FILTRAR_POR):
             rol = "INDETERMINADO"
         else:
-            ni += 1
-            continue  # no pertenece al buscado
+            continue
 
-        nid, g = nids[ni] if ni < len(nids) else ("", gam.strip())
-        causas.append({
-            "caratula": caratula,
-            "expediente": celdas[1] if len(celdas) > 1 else "",
-            "juzgado": f"{tribunal} - {depto}",
-            "fecha_inicio": celdas[3] if len(celdas) > 3 else "",
-            "ultima_actuacion": celdas[4] if len(celdas) > 4 else "",
-            "estado": celdas[5] if len(celdas) > 5 else "",
-            "fuente": "SCBA",
-            "rol": rol,
-            "dni_actor": "",
-            "dni_validacion": "no_validado",
-            "_nid": nid,
-            "_gam": g,
-        })
-        ni += 1
+        vistos.add(nid)
+        g = mg.group(1)
+        estado_desp = ""
+        expediente = ""
+        fecha_inicio = ""
+        ultima_actuacion = ""
+        sig = _siguiente_tr_bloque_resultado(fila)
+        if sig:
+            tds = sig.find_all("td", recursive=False)
+            if len(tds) >= 1:
+                estado_desp = tds[0].get_text(" ", strip=True)
+            if len(tds) >= 3:
+                expediente = tds[2].get_text(" ", strip=True)
+            if len(tds) >= 4:
+                fecha_inicio = tds[3].get_text(" ", strip=True)
+            if len(tds) >= 5:
+                ultima_actuacion = tds[4].get_text(" ", strip=True)
+
+        causas.append(
+            {
+                "caratula": caratula,
+                "expediente": expediente,
+                "juzgado": f"{tribunal} - {depto}",
+                "fecha_inicio": fecha_inicio,
+                "ultima_actuacion": ultima_actuacion,
+                "estado": estado_desp,
+                "fuente": "SCBA",
+                "rol": rol,
+                "dni_actor": "",
+                "dni_validacion": "no_validado",
+                "_nid": nid,
+                "_gam": g,
+            }
+        )
     log.info("SCBA parsear: %s causa(s) en %s / %s (gam=%s)", len(causas), depto, tribunal, gam)
     return causas
 
@@ -383,12 +484,17 @@ def buscar_scba():
         progreso(2, "Error de conexion SCBA", ""); return []
     todas, procesados = [], 0
     for depto, dep_id, tribunales in SCBA_JURISDICCIONES:
-        log.info("SCBA: departamento %s pidDepartamento=%s (%s tribunales)", depto, dep_id, len(tribunales))
-        # Seleccionar departamento judicial
+        log.info("SCBA: departamento %s DtoJudElegido=%s (%s tribunales)", depto, dep_id, len(tribunales))
+        # Seleccionar departamento judicial (formulario POSLoguin, no solo pidDepartamento)
         try:
-            s.post(f"{BASE}/POSloguin.asp", data={"pidDepartamento": dep_id}, timeout=10)
+            r_dep = seleccionar_departamento_judicial(s, dep_id)
+            log.debug(
+                "SCBA: POSLoguin selección depto HTTP %s url=%s",
+                r_dep.status_code,
+                (r_dep.url or "")[:100],
+            )
         except Exception:
-            log.warning("SCBA: POSloguin.asp fallo para depto %s (%s)", depto, dep_id, exc_info=True)
+            log.warning("SCBA: POSLoguin.asp fallo para depto %s (%s)", depto, dep_id, exc_info=True)
         for gam, tribunal in tribunales:
             procesados += 1
             pct = int((procesados / TOTAL) * 83) + 2
@@ -407,9 +513,9 @@ def buscar_scba():
                     log.warning("SCBA: sesion cayo a login en %s/%s; re-login", depto, gam)
                     do_login(s)
                     try:
-                        s.post(f"{BASE}/POSloguin.asp", data={"pidDepartamento": dep_id}, timeout=10)
+                        seleccionar_departamento_judicial(s, dep_id)
                     except Exception:
-                        log.debug("SCBA: re-POSloguin fallo", exc_info=True)
+                        log.debug("SCBA: re-POSLoguin fallo", exc_info=True)
                     r = hacer_busqueda(s, gam)
                     if is_login_page(r.text):
                         log.warning("SCBA: sigue login tras reintento; se omite %s", gam)
