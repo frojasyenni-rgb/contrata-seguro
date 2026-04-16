@@ -275,22 +275,39 @@ def buscar_scba():
 
 def buscar_pjn():
     BASE_PJN = "https://scw.pjn.gov.ar"
-    CAPTCHA = ["campo verificador","fcMsg","VER DESAFIO","resuelva el desafio","Presione el bot"]
+    def es_captcha_pjn(html):
+        if not html:
+            return False
+        t = html.lower()
+        # Evita falsos positivos por texto genérico; busca señales fuertes.
+        señales_fuertes = [
+            "g-recaptcha",
+            "h-captcha",
+            "cf-challenge",
+            "turnstile",
+            "recaptcha/api.js",
+            "name=\"campoverificador\"",
+            "id=\"campoverificador\"",
+        ]
+        if any(s in t for s in señales_fuertes):
+            return True
+        # Fallback semántico: desafío/verificador en contexto de bloqueo.
+        return ("desafio" in t or "desafío" in t) and ("verificador" in t or "captcha" in t)
     try:
         s = requests.Session(); s.headers.update(HDR)
         r = s.get(f"{BASE_PJN}/scw/home.seam", timeout=15)
-        if any(c.lower() in r.text.lower() for c in CAPTCHA): return [], "captcha_required"
+        if es_captcha_pjn(r.text): return [], "captcha_required"
         soup = BeautifulSoup(r.text, "html.parser")
         vs = soup.find("input", {"name": "javax.faces.ViewState"})
         vstate = vs["value"] if vs else ""
         causas = []
-        for cod, nombre in [("CNT","Camara Nacional del Trabajo"),("CFSS","Camara Federal Seg. Social")]:
+        for cod, nombre in [("CNT","Camara Nacional del Trabajo"),("CSS","Camara Federal Seg. Social")]:
             try:
                 r2 = s.post(f"{BASE_PJN}/scw/home.seam", data={
                     "javax.faces.ViewState": vstate, "formPublica": "formPublica",
                     "formPublica:caratula": NOMBRE, "formPublica:camara": cod,
                     "formPublica:btnSearch": "Buscar"}, timeout=20)
-                if any(c.lower() in r2.text.lower() for c in CAPTCHA): return [], "captcha_required"
+                if es_captcha_pjn(r2.text): return [], "captcha_required"
                 soup2 = BeautifulSoup(r2.text, "html.parser")
                 for fila in soup2.select("table tr")[1:]:
                     celdas = [td.get_text(strip=True) for td in fila.find_all("td")]
