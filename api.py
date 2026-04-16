@@ -101,9 +101,11 @@ def guardar_consulta(usuario_id, nombre, resultado, usar_credito, estado_pjn="ok
 def correr_scraper_stream(nombre, q, dni_cuil=""):
     try:
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
+        # stderr del hijo al stderr del proceso Flask/Gunicorn: logs en tiempo real (Railway, local).
         proc = subprocess.Popen(
             [sys.executable, script, nombre.upper()] + ([dni_cuil] if dni_cuil else []),
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=sys.stderr,
             text=True, bufsize=1,
             cwd=os.path.dirname(os.path.abspath(__file__)),
         )
@@ -122,10 +124,11 @@ def correr_scraper_stream(nombre, q, dni_cuil=""):
             if os.path.exists(json_path):
                 with open(json_path, encoding="utf-8") as f:
                     resultado_final = json.load(f)
-        if resultado_final: q.put(("resultado", resultado_final))
+        if resultado_final:
+            q.put(("resultado", resultado_final))
         else:
-            stderr = proc.stderr.read()[-500:] if proc.stderr else ""
-            q.put(("error", stderr or "Sin resultado"))
+            # stderr del scraper va a sys.stderr (no PIPE); revisar logs del servidor.
+            q.put(("error", "Sin resultado (revisar logs del servidor / buscar_simple)"))
     except subprocess.TimeoutExpired: q.put(("error", "Timeout"))
     except Exception as e: q.put(("error", str(e)))
     finally: q.put(("done", None))

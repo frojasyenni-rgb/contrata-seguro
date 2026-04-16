@@ -2,8 +2,34 @@
 """CONTRATA SEGURO - v3.4 - Fix parametros POST correctos para SCBA MEV"""
 import requests, os, unicodedata
 from bs4 import BeautifulSoup
-import json, time, sys, re
+import json, time, sys, re, logging
 from urllib.parse import urljoin
+
+
+def _setup_buscar_logger():
+    """
+    Logs solo por stderr: no mezclar con stdout (PROGRESO:/RESULTADO:).
+    Nivel: env BUSCAR_SIMPLE_LOG_LEVEL (DEBUG, INFO, WARNING). Por defecto INFO.
+    """
+    logger = logging.getLogger("buscar_simple")
+    if logger.handlers:
+        return logger
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stderr)
+    level_name = (os.environ.get("BUSCAR_SIMPLE_LOG_LEVEL") or "INFO").upper()
+    handler.setLevel(getattr(logging, level_name, logging.INFO))
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [buscar_simple][%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+
+log = _setup_buscar_logger()
 
 # Credenciales solo por entorno (p. ej. Railway); nunca en el código fuente.
 SCBA_USUARIO = (os.environ.get("SCBA_USUARIO") or "").strip()
@@ -16,6 +42,7 @@ DNI_CUIL = sys.argv[2] if len(sys.argv) > 2 else ""
 
 def _abort_sin_credenciales_scba():
     msg = "Defina SCBA_USUARIO y SCBA_PASSWORD en el entorno del servidor."
+    log.error("%s", msg)
     print(msg, file=sys.stderr)
     out = {
         "nombre": NOMBRE,
@@ -120,14 +147,17 @@ def _ids_login_scba():
 def do_login(s):
     try:
         login_url = f"{BASE}/loguin.asp"
+        log.info("SCBA login: GET %s", login_url)
         r0 = s.get(login_url, timeout=15)
         if not r0.ok:
+            log.warning("SCBA login: respuesta inicial HTTP %s", r0.status_code)
             return False
 
         soup = BeautifulSoup(r0.text, "html.parser")
         form = soup.find("form")
         action = form.get("action", "loguin.asp") if form else "loguin.asp"
         post_url = urljoin(login_url, action)
+        log.debug("SCBA login: form action=%s post_url=%s", action, post_url)
 
         payload_base = {}
         if form:
@@ -153,6 +183,11 @@ def do_login(s):
                     break
 
         intentos_depto = [""] + _ids_login_scba()
+        log.info(
+            "SCBA login: probando %s combinaciones de departamento (selector=%r)",
+            len(intentos_depto),
+            dept_select_name or "(ninguno)",
+        )
         for dep_id in intentos_depto:
             payload = dict(payload_base)
             if dept_select_name:
@@ -170,12 +205,23 @@ def do_login(s):
                 headers={"Referer": login_url, "Origin": BASE},
             )
             url_fin = (r.url or "").lower()
+            log.debug(
+                "SCBA login POST depto=%r -> HTTP %s url_final=%s login_page=%s",
+                dep_id,
+                r.status_code,
+                (r.url or "")[:120],
+                is_login_page(r.text),
+            )
             if "posloguin.asp" in url_fin:
+                log.info("SCBA login: OK (redirect posloguin) depto=%r", dep_id)
                 return True
             if not is_login_page(r.text):
+                log.info("SCBA login: OK (ya no es pagina de login) depto=%r", dep_id)
                 return True
+        log.error("SCBA login: fallo tras probar todos los departamentos")
         return False
     except Exception:
+        log.exception("SCBA login: excepcion no controlada")
         return False
 
 def hacer_busqueda(s, gam):
@@ -183,6 +229,7 @@ def hacer_busqueda(s, gam):
     POST correcto al formulario real de SCBA MEV.
     Campos verificados inspeccionando el formulario HTML de mev.scba.gov.ar/Busqueda.asp
     """
+    log.debug("SCBA busqueda POST JuzgadoElegido=%r caratula=%r", gam.strip(), APELLIDO)
     return s.post(
         f"{BASE}/Busqueda.asp",
         data={
@@ -199,8 +246,15 @@ def hacer_busqueda(s, gam):
 
 def buscar_dni_expediente(s, nid, gam):
     try:
+        log.debug("SCBA DNI: GET procesales nid=%s gam=%s", nid, gam)
         r = s.get(f"{BASE}/procesales.asp", params={"nidCausa": nid, "pidJuzgado": gam}, timeout=15)
-        if not r.ok or is_login_page(r.text): return ""
+        if not r.ok or is_login_page(r.text):
+            log.debug(
+                "SCBA DNI: sin datos (http=%s login_page=%s)",
+                r.status_code,
+                is_login_page(r.text),
+            )
+            return ""
         soup = BeautifulSoup(r.text, "html.parser")
         texto = ""
         for row in soup.find_all("tr"):
@@ -219,6 +273,7 @@ def buscar_dni_expediente(s, nid, gam):
                 return re.sub(r"[\.\s]", "", raw).lstrip("0")
         return ""
     except Exception:
+        log.debug("SCBA DNI: excepcion al leer expediente nid=%s", nid, exc_info=True)
         return ""
 
 def validar_dni(encontrado):
@@ -228,6 +283,12 @@ def validar_dni(encontrado):
 
 def parsear_causas(html, depto, tribunal, gam):
     if is_login_page(html):
+        log.warning(
+            "SCBA parsear: respuesta es login (%s / %s gam=%s); no se parsean causas",
+            depto,
+            tribunal,
+            gam,
+        )
         return []
     soup = BeautifulSoup(html, "html.parser")
     nids = extraer_nids(html)
@@ -276,48 +337,76 @@ def parsear_causas(html, depto, tribunal, gam):
             "_gam": g,
         })
         ni += 1
+    log.info("SCBA parsear: %s causa(s) en %s / %s (gam=%s)", len(causas), depto, tribunal, gam)
     return causas
 
 def buscar_scba():
     progreso(2, "SCBA -- Iniciando sesion...", "Provincia de Buenos Aires")
+    log.info("SCBA: iniciando sesion y recorrido de %s juzgados", TOTAL)
     s = requests.Session()
     s.headers.update(HDR)
     if not do_login(s):
+        log.error("SCBA: do_login fallo; se devuelve lista vacia")
         progreso(2, "Error de conexion SCBA", ""); return []
     todas, procesados = [], 0
     for depto, dep_id, tribunales in SCBA_JURISDICCIONES:
+        log.info("SCBA: departamento %s pidDepartamento=%s (%s tribunales)", depto, dep_id, len(tribunales))
         # Seleccionar departamento judicial
-        try: s.post(f"{BASE}/POSloguin.asp", data={"pidDepartamento": dep_id}, timeout=10)
-        except Exception: pass
+        try:
+            s.post(f"{BASE}/POSloguin.asp", data={"pidDepartamento": dep_id}, timeout=10)
+        except Exception:
+            log.warning("SCBA: POSloguin.asp fallo para depto %s (%s)", depto, dep_id, exc_info=True)
         for gam, tribunal in tribunales:
             procesados += 1
             pct = int((procesados / TOTAL) * 83) + 2
             progreso(pct, f"SCBA -- {depto}", f"{tribunal} ({procesados}/{TOTAL})", len(todas))
             try:
                 r = hacer_busqueda(s, gam)
+                log.debug(
+                    "SCBA busqueda %s/%s %s HTTP %s len(html)=%s",
+                    procesados,
+                    TOTAL,
+                    gam,
+                    r.status_code,
+                    len(r.text or ""),
+                )
                 if is_login_page(r.text):
+                    log.warning("SCBA: sesion cayo a login en %s/%s; re-login", depto, gam)
                     do_login(s)
-                    try: s.post(f"{BASE}/POSloguin.asp", data={"pidDepartamento": dep_id}, timeout=10)
-                    except Exception: pass
+                    try:
+                        s.post(f"{BASE}/POSloguin.asp", data={"pidDepartamento": dep_id}, timeout=10)
+                    except Exception:
+                        log.debug("SCBA: re-POSloguin fallo", exc_info=True)
                     r = hacer_busqueda(s, gam)
-                    if is_login_page(r.text): continue
+                    if is_login_page(r.text):
+                        log.warning("SCBA: sigue login tras reintento; se omite %s", gam)
+                        continue
                 nuevas = parsear_causas(r.text, depto, tribunal, gam)
                 if nuevas:
                     progreso(pct, f"SCBA -- {depto}", f"{tribunal}: {len(nuevas)} causa(s)", len(todas) + len(nuevas))
                 todas.extend(nuevas)
                 time.sleep(0.2)
-            except Exception: pass
+            except Exception:
+                log.exception("SCBA: error en busqueda %s %s %s", depto, tribunal, gam)
     actores = [c for c in todas if c["rol"] == "ACTOR" and c["_nid"]]
     if actores:
+        log.info("SCBA: validando DNI en %s expediente(s) como ACTOR", len(actores))
         progreso(86, f"Verificando DNI ({len(actores)} como actor)...", "", len(todas))
         for i, c in enumerate(actores):
             progreso(86 + int((i / len(actores)) * 8), f"DNI {i+1}/{len(actores)}", c["caratula"][:50], len(todas))
             dni = buscar_dni_expediente(s, c["_nid"], c["_gam"])
             c["dni_actor"] = dni
             c["dni_validacion"] = validar_dni(dni)
+            log.debug(
+                "SCBA DNI actor %s/%s validacion=%s",
+                i + 1,
+                len(actores),
+                c["dni_validacion"],
+            )
             time.sleep(0.4)
     for c in todas:
         c.pop("_nid", None); c.pop("_gam", None)
+    log.info("SCBA: fin con %s causa(s) acumuladas", len(todas))
     return todas
 
 def buscar_pjn():
@@ -341,20 +430,30 @@ def buscar_pjn():
         # Fallback semántico: desafío/verificador en contexto de bloqueo.
         return ("desafio" in t or "desafío" in t) and ("verificador" in t or "captcha" in t)
     try:
+        log.info("PJN: iniciando home.seam (caratula=%r)", NOMBRE)
         s = requests.Session(); s.headers.update(HDR)
         r = s.get(f"{BASE_PJN}/scw/home.seam", timeout=15)
-        if es_captcha_pjn(r.text): return [], "captcha_required"
+        log.debug("PJN: GET home HTTP %s len=%s", r.status_code, len(r.text or ""))
+        if es_captcha_pjn(r.text):
+            log.warning("PJN: captcha o bloqueo detectado en home")
+            return [], "captcha_required"
         soup = BeautifulSoup(r.text, "html.parser")
         vs = soup.find("input", {"name": "javax.faces.ViewState"})
         vstate = vs["value"] if vs else ""
+        if not vstate:
+            log.warning("PJN: ViewState vacio; la busqueda puede fallar")
         causas = []
         for cod, nombre in [("CNT","Camara Nacional del Trabajo"),("CSS","Camara Federal Seg. Social")]:
             try:
+                log.info("PJN: POST busqueda camara=%s (%s)", cod, nombre)
                 r2 = s.post(f"{BASE_PJN}/scw/home.seam", data={
                     "javax.faces.ViewState": vstate, "formPublica": "formPublica",
                     "formPublica:caratula": NOMBRE, "formPublica:camara": cod,
                     "formPublica:btnSearch": "Buscar"}, timeout=20)
-                if es_captcha_pjn(r2.text): return [], "captcha_required"
+                log.debug("PJN: POST %s HTTP %s len=%s", cod, r2.status_code, len(r2.text or ""))
+                if es_captcha_pjn(r2.text):
+                    log.warning("PJN: captcha en respuesta camara=%s", cod)
+                    return [], "captcha_required"
                 soup2 = BeautifulSoup(r2.text, "html.parser")
                 for fila in soup2.select("table tr")[1:]:
                     celdas = [td.get_text(strip=True) for td in fila.find_all("td")]
@@ -376,17 +475,31 @@ def buscar_pjn():
                         "fuente": "PJN", "rol": rol,
                         "dni_actor": "", "dni_validacion": "no_validado",
                     })
-            except Exception: continue
+            except Exception:
+                log.exception("PJN: error en camara %s", cod)
+                continue
+        log.info("PJN: fin con %s causa(s) estado=ok", len(causas))
         return causas, "ok"
     except Exception:
+        log.exception("PJN: error general")
         return [], "error"
 
 if not SCBA_USUARIO or not SCBA_PASSWORD:
     _abort_sin_credenciales_scba()
 
+log.info(
+    "Inicio busqueda nombre=%r dni_cuil=%r dni_norm=%r filtro_partes=%s",
+    NOMBRE,
+    DNI_CUIL or "",
+    DNI_BUSCADO or "",
+    FILTRAR_POR,
+)
 scba = buscar_scba()
+log.info("Tras SCBA: %s causa(s); inicio PJN", len(scba))
 progreso(88, "PJN -- Capital Federal", "Camara Nacional del Trabajo", len(scba))
 pjn, estado_pjn = buscar_pjn()
+log.info("Tras PJN: %s causa(s) estado_pjn=%s", len(pjn), estado_pjn)
 todas = scba + pjn
 progreso(100, "Busqueda completada", f"{len(todas)} causa(s) encontrada(s)", len(todas))
+log.info("Busqueda terminada total=%s (scba=%s pjn=%s)", len(todas), len(scba), len(pjn))
 print(f"RESULTADO:{json.dumps({'nombre':NOMBRE,'dni_buscado':DNI_CUIL or None,'total':len(todas),'causas_scba':len(scba),'causas_pjn':len(pjn),'estado_pjn':estado_pjn,'causas':todas},ensure_ascii=False)}", flush=True)
