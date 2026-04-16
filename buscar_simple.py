@@ -7,6 +7,7 @@ import json, time, sys, re
 # Credenciales solo por entorno (p. ej. Railway); nunca en el código fuente.
 SCBA_USUARIO = (os.environ.get("SCBA_USUARIO") or "").strip()
 SCBA_PASSWORD = (os.environ.get("SCBA_PASSWORD") or "").strip()
+SCBA_DEPTO_REGISTRO = (os.environ.get("SCBA_DEPTO_REGISTRO") or "").strip()
 
 NOMBRE = sys.argv[1] if len(sys.argv) > 1 else "MOSTEYRO"
 DNI_CUIL = sys.argv[2] if len(sys.argv) > 2 else ""
@@ -79,12 +80,54 @@ def extraer_nids(html):
     return [(m.group(1), m.group(2).strip())
             for m in re.finditer(r'nidCausa=(\d+)[^"]*pidJuzgado=(GAM[\d\s]+)', html, re.IGNORECASE)]
 
+def _ids_login_scba():
+    """
+    Prioriza el depto configurado (si existe) y luego prueba TODOS + deptos conocidos.
+    Esto cubre usuarios creados fuera de 'Todos los Deptos'.
+    """
+    ids = []
+    if SCBA_DEPTO_REGISTRO:
+        ids.append(SCBA_DEPTO_REGISTRO)
+    ids.extend(["", "0"])
+    ids.extend([dep_id for _, dep_id, _ in SCBA_JURISDICCIONES])
+    # Unicos preservando orden
+    out = []
+    seen = set()
+    for v in ids:
+        vv = (v or "").strip()
+        if vv in seen:
+            continue
+        seen.add(vv)
+        out.append(vv)
+    return out
+
+
 def do_login(s):
     try:
-        r = s.post(f"{BASE}/loguin.asp",
-                   data={"UsuarioBase": SCBA_USUARIO, "PasswordBase": SCBA_PASSWORD},
-                   timeout=15)
-        return not is_login_page(r.text)
+        # Intento base (Todos los deptos)
+        r = s.post(
+            f"{BASE}/loguin.asp",
+            data={"UsuarioBase": SCBA_USUARIO, "PasswordBase": SCBA_PASSWORD},
+            timeout=15,
+        )
+        if not is_login_page(r.text):
+            return True
+
+        # Fallback: algunos usuarios requieren seleccionar depto de registro.
+        for dep_id in _ids_login_scba():
+            payload = {
+                "UsuarioBase": SCBA_USUARIO,
+                "PasswordBase": SCBA_PASSWORD,
+                # Variantes defensivas de nombre de campo observadas en portales legacy.
+                "pidDepartamento": dep_id,
+                "Departamento": dep_id,
+                "CreadoEn": dep_id,
+                "depto": dep_id,
+            }
+            r2 = s.post(f"{BASE}/loguin.asp", data=payload, timeout=15)
+            if not is_login_page(r2.text):
+                return True
+        return False
     except Exception:
         return False
 

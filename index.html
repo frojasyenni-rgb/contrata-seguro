@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Si servís el HTML en GitHub Pages y el API en otro host (p. ej. Railway), poné la URL base del backend aquí, sin barra final. -->
+<meta name="api-base" content="">
 <title>Contrata Seguro — Consulta Judicial Laboral</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
 <script src="https://sdk.mercadopago.com/js/v2"></script>
@@ -381,7 +383,12 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // CONFIG
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-const API_URL = window.location.origin;
+const API_URL = (() => {
+  const m = document.querySelector('meta[name="api-base"]');
+  const base = m && m.getAttribute('content');
+  if (base && /^https?:\/\//i.test(base.trim())) return base.trim().replace(/\/$/, '');
+  return window.location.origin;
+})();
 const SUPABASE_URL = 'https://gluolujxtatwkmcufoem.supabase.co'; // Se reemplaza al configurar
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdW9sdWp4dGF0d2ttY3Vmb2VtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Njk4NzAsImV4cCI6MjA5MDU0NTg3MH0.QHeYQjwCPLN9H2Ujj5wRuufGtnViAqn0kWETDxNZtFI'; // Se reemplaza al configurar
 
