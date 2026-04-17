@@ -206,6 +206,11 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
   .hero h1{font-size:26px;}
   header{padding:12px 16px;}
 }
+/* PJN captcha: modal ancho cuando se muestra SCW en iframe */
+#modal-pjn-captcha.modal-pjn-wide .modal{max-width:min(96vw,920px);}
+#modal-pjn-captcha.modal-pjn-wide #pjn-captcha-host-modal{min-height:min(70vh,520px);}
+.pjn-mode-btn{font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid var(--gris-200);background:var(--gris-100);cursor:pointer;font-family:'DM Sans',sans-serif;}
+.pjn-mode-btn.active{border-color:var(--azul);background:var(--azul-c);color:var(--azul);font-weight:600;}
 </style>
 </head>
 <body>
@@ -223,6 +228,9 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
     <button class="nav-btn nav-btn-outline" onclick="logout()">Salir</button>
   </div>
 </header>
+
+<!-- Turnstile (humano hacia nuestro API); invisible si está configurado en el servidor -->
+<div id="turnstile-scba-gate" style="position:fixed;width:1px;height:1px;left:-100px;top:0;overflow:hidden;pointer-events:none" aria-hidden="true"></div>
 
 <!-- MODAL AUTH -->
 <div class="modal-overlay" id="modal-auth">
@@ -254,10 +262,20 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 <div class="modal-overlay" id="modal-pjn-captcha" style="display:none;z-index:1100">
   <div class="modal" style="max-width:460px">
     <div class="modal-title">Verificación PJN</div>
-    <div class="modal-sub">Completá el desafío del Poder Judicial (Capital Federal). Luego pulsá <strong>Continuar</strong> para seguir con la búsqueda. Si ves &quot;Captcha no disponible&quot;, probá sin bloqueadores de anuncios o otra red.</div>
-    <div id="pjn-captcha-host-modal" style="min-height:88px;margin:12px 0"></div>
+    <div class="modal-sub">Elegí cómo interactuar con el PJN. El desafío oficial solo aplica bien en el <strong>dominio del PJN</strong>; el widget integrado suele fallar fuera de <code>scw.pjn.gov.ar</code>. <strong>Siguiente</strong> sigue con la búsqueda automatizada en provincia (SCBA).</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;align-items:center">
+      <span style="font-size:11px;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.06em;width:100%">Modo de visualización</span>
+      <button type="button" class="pjn-mode-btn active" id="pjn-mode-widget" data-pjn-mode="widget">Widget integrado</button>
+      <button type="button" class="pjn-mode-btn" id="pjn-mode-iframe" data-pjn-mode="iframe">Sitio oficial (iframe)</button>
+      <button type="button" class="pjn-mode-btn" id="pjn-mode-tab" data-pjn-mode="tab">Sitio oficial (nueva pestaña)</button>
+    </div>
+    <p id="pjn-captcha-msg" style="font-size:12px;color:var(--rojo);margin:8px 0;display:none"></p>
+    <div id="pjn-captcha-host-modal" style="min-height:100px;margin:12px 0"></div>
     <p id="pjn-captcha-hint" style="font-size:12px;color:var(--gris-500);margin-bottom:10px;display:none">Listo: podés continuar.</p>
-    <button type="button" class="btn btn-primary" id="btn-pjn-captcha-continuar" disabled>Continuar</button>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button type="button" class="btn btn-primary" id="btn-pjn-captcha-continuar" disabled>Continuar</button>
+      <button type="button" class="btn btn-secondary" id="btn-pjn-captcha-siguiente">Siguiente (solo provincia por ahora)</button>
+    </div>
     <div style="text-align:right;margin-top:10px"><a class="link" style="font-size:12px" id="link-pjn-captcha-cancel">Cancelar</a></div>
   </div>
 </div>
@@ -751,91 +769,275 @@ function unhoverPlan(card) {
 let evtSource = null; // conexión SSE activa
 let activeSearchId = 0; // evita que callbacks viejos pisen búsquedas nuevas
 let _pjnCaptchaPoll = null;
+const PJN_SCW_OFICIAL = 'https://scw.pjn.gov.ar/scw/home.seam';
+window.__PJN_TURNSTILE_SITEKEY = window.__PJN_TURNSTILE_SITEKEY || '';
+window.__turnstileWidgetId = window.__turnstileWidgetId || null;
+
+async function cargarConfigApiPublica() {
+  try {
+    var r = await fetch(API_URL + '/api/info');
+    var j = await r.json();
+    window.__PJN_TURNSTILE_SITEKEY = (j.turnstile_site_key || '').trim();
+  } catch (e) {}
+}
+
+function cargarScriptTurnstile() {
+  return new Promise(function (resolve, reject) {
+    if (window.turnstile) { resolve(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    s.async = true;
+    s.defer = true;
+    s.onload = function () { resolve(); };
+    s.onerror = function () { reject(new Error('turnstile_script')); };
+    document.head.appendChild(s);
+  });
+}
+
+async function esperarTurnstileAntesDePjn() {
+  var site = window.__PJN_TURNSTILE_SITEKEY;
+  if (!site) return '';
+  var el = document.getElementById('turnstile-scba-gate');
+  if (!el) return '';
+  await cargarScriptTurnstile();
+  return new Promise(function (resolve, reject) {
+    var t = setTimeout(function () { reject(new Error('Turnstile tardó demasiado')); }, 45000);
+    try {
+      el.innerHTML = '';
+      window.__turnstileWidgetId = null;
+      el.style.pointerEvents = 'auto';
+      window.__turnstileWidgetId = window.turnstile.render(el, {
+        sitekey: site,
+        size: 'invisible',
+        callback: function (token) {
+          clearTimeout(t);
+          el.style.pointerEvents = 'none';
+          resolve(token || '');
+        },
+        'error-callback': function () {
+          clearTimeout(t);
+          reject(new Error('Turnstile error'));
+        },
+        'expired-callback': function () {
+          clearTimeout(t);
+          reject(new Error('Turnstile expirado'));
+        },
+      });
+      window.turnstile.execute(window.__turnstileWidgetId);
+    } catch (e2) {
+      clearTimeout(t);
+      reject(e2);
+    }
+  });
+}
 
 function closePjnCaptchaModal() {
+  var host = document.getElementById('pjn-captcha-host-modal');
+  if (host) host.innerHTML = '';
   var m = document.getElementById('modal-pjn-captcha');
-  if (m) { m.style.display = 'none'; m.classList.remove('open'); }
+  if (m) { m.style.display = 'none'; m.classList.remove('open'); m.classList.remove('modal-pjn-wide'); }
   if (_pjnCaptchaPoll) { clearInterval(_pjnCaptchaPoll); _pjnCaptchaPoll = null; }
+  ['pjn-mode-widget', 'pjn-mode-iframe', 'pjn-mode-tab'].forEach(function (id) {
+    var b = document.getElementById(id);
+    if (b) b.onclick = null;
+  });
+}
+
+function apiMismaOrigenQuePagina() {
+  try {
+    var a = new URL(API_URL || window.location.origin, window.location.href);
+    return a.origin === window.location.origin;
+  } catch (e0) {
+    return false;
+  }
 }
 
 function leerTokenPjnModal() {
+  var ifr = document.getElementById('pjn-captcha-iframe');
+  if (ifr) {
+    try {
+      var doc = ifr.contentDocument || (ifr.contentWindow && ifr.contentWindow.document);
+      if (doc) {
+        var inp = doc.getElementById('captcha-response') || doc.querySelector('input[name="captcha-response"]');
+        if (inp && inp.value) return String(inp.value).trim();
+      }
+    } catch (e1) {}
+  }
   var host = document.getElementById('pjn-captcha-host-modal');
   if (!host) return '';
-  var inp = host.querySelector('#captcha-response') || host.querySelector('input[name="captcha-response"]');
-  return inp && inp.value ? String(inp.value).trim() : '';
+  var inp2 = host.querySelector('#captcha-response') || host.querySelector('input[name="captcha-response"]');
+  return inp2 && inp2.value ? String(inp2.value).trim() : '';
 }
 
-function injectPjnWidgetScript(sitekey) {
+function openPjnCaptchaEmbedIframe() {
   return new Promise(function (resolve, reject) {
     var host = document.getElementById('pjn-captcha-host-modal');
+    if (!host) { reject(new Error('UI')); return; }
     host.innerHTML = '';
-    var div = document.createElement('div');
-    div.className = 'pjn-captcha';
-    div.setAttribute('data-sitekey', sitekey);
-    host.appendChild(div);
-    document.querySelectorAll('script[data-cs-pjn-init]').forEach(function (n) { n.remove(); });
-    var sc = document.createElement('script');
-    sc.setAttribute('data-cs-pjn-init', '1');
-    sc.async = true;
-    sc.src = API_URL + '/pjn/captcha-init.js?sitekey=' + encodeURIComponent(sitekey) + '&_=' + Date.now();
-    sc.onload = function () { resolve(); };
-    sc.onerror = function () { reject(new Error('No se pudo cargar el script PJN (¿API caída o bloqueador?)')); };
-    document.head.appendChild(sc);
+    if (!apiMismaOrigenQuePagina()) {
+      reject(new Error('cross_origin'));
+      return;
+    }
+    var nifr = document.createElement('iframe');
+    nifr.id = 'pjn-captcha-iframe';
+    nifr.title = 'Widget captcha PJN';
+    nifr.setAttribute('referrerpolicy', 'no-referrer');
+    nifr.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+    nifr.style.cssText = 'width:100%;min-height:130px;border:0;border-radius:8px;background:#fff';
+    nifr.onload = function () { resolve(); };
+    nifr.onerror = function () { reject(new Error('iframe')); };
+    host.appendChild(nifr);
+    var base = (API_URL || '').replace(/\/$/, '') || window.location.origin;
+    nifr.src = base + '/pjn/captcha-embed.html?t=' + Date.now();
   });
+}
+
+function montarIframeScwOficial() {
+  var host = document.getElementById('pjn-captcha-host-modal');
+  if (!host) return;
+  host.innerHTML = '';
+  var ifr = document.createElement('iframe');
+  ifr.id = 'pjn-scw-oficial';
+  ifr.title = 'Sistema de Consultas Web — PJN';
+  ifr.setAttribute(
+    'sandbox',
+    'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads',
+  );
+  ifr.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+  ifr.style.cssText = 'width:100%;height:min(65vh,560px);border:0;border-radius:8px;background:#fff';
+  ifr.src = PJN_SCW_OFICIAL;
+  host.appendChild(ifr);
 }
 
 function mostrarModalPjnCaptcha(prepareJson) {
   return new Promise(function (resolve, reject) {
     var m = document.getElementById('modal-pjn-captcha');
     var btn = document.getElementById('btn-pjn-captcha-continuar');
+    var btnSig = document.getElementById('btn-pjn-captcha-siguiente');
     var hint = document.getElementById('pjn-captcha-hint');
+    var msg = document.getElementById('pjn-captcha-msg');
     var cancel = document.getElementById('link-pjn-captcha-cancel');
-    if (!m || !btn) { reject(new Error('UI')); return; }
+    var mw = document.getElementById('pjn-mode-widget');
+    var mi = document.getElementById('pjn-mode-iframe');
+    var mt = document.getElementById('pjn-mode-tab');
+    if (!m || !btn || !btnSig) { reject(new Error('UI')); return; }
+    var currentMode = 'widget';
     btn.disabled = true;
-    if (hint) hint.style.display = 'none';
+    btnSig.disabled = false;
+    if (hint) {
+      hint.style.display = 'none';
+      hint.textContent = 'Listo: podés continuar.';
+    }
+    if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
     m.style.display = 'flex';
     m.classList.add('open');
+
+    function setModeActive(mode) {
+      [mw, mi, mt].forEach(function (el) {
+        if (!el) return;
+        el.classList.toggle('active', el.getAttribute('data-pjn-mode') === mode);
+      });
+    }
+
+    function applyMode(mode) {
+      currentMode = mode;
+      setModeActive(mode);
+      m.classList.toggle('modal-pjn-wide', mode === 'iframe');
+      if (_pjnCaptchaPoll) { clearInterval(_pjnCaptchaPoll); _pjnCaptchaPoll = null; }
+      if (mode === 'widget') {
+        btn.disabled = true;
+        if (hint) { hint.style.display = 'none'; }
+        openPjnCaptchaEmbedIframe().catch(function (err) {
+          if (msg) {
+            msg.style.display = 'block';
+            msg.textContent = err.message === 'cross_origin'
+              ? 'API en otro dominio: el widget integrado no está disponible. Probá «Sitio oficial» o «Siguiente».'
+              : 'No se cargó el embed del widget. Probá «Sitio oficial» o «Siguiente».';
+          }
+        });
+        _pjnCaptchaPoll = setInterval(function () {
+          var tok = leerTokenPjnModal();
+          if (tok && tok.length >= 8) {
+            btn.disabled = false;
+            if (hint) hint.style.display = 'block';
+          }
+        }, 350);
+      } else if (mode === 'iframe') {
+        montarIframeScwOficial();
+        btn.disabled = true;
+        if (hint) {
+          hint.style.display = 'block';
+          hint.textContent =
+            'Estás viendo el sitio oficial del PJN. Así el desafío corre en su dominio (mejor compatibilidad). La importación automática a esta app sigue necesitando el token del modo «Widget integrado» o usá «Siguiente» para SCBA.';
+        }
+      } else {
+        var host = document.getElementById('pjn-captcha-host-modal');
+        if (host) {
+          host.innerHTML =
+            '<p style="font-size:13px;line-height:1.5;color:var(--gris-900)">Se abrió <strong>scw.pjn.gov.ar</strong> en otra ventana. Allí podés demostrar que sos una persona ante el PJN. Esta app no puede leer el resultado de esa ventana por seguridad del navegador.</p>';
+        }
+        try {
+          window.open(PJN_SCW_OFICIAL, 'pjn_scw', 'noopener,noreferrer,width=1240,height=900');
+        } catch (e0) {}
+        btn.disabled = true;
+        if (hint) {
+          hint.style.display = 'block';
+          hint.textContent = 'Para la búsqueda automática en esta pantalla, volvé a «Widget integrado» o pulsá «Siguiente» (solo provincia).';
+        }
+      }
+    }
+
     function cleanup() {
       closePjnCaptchaModal();
       btn.onclick = null;
+      btnSig.onclick = null;
       cancel.onclick = null;
     }
+    btnSig.onclick = function () {
+      cleanup();
+      resolve({ skipped: true });
+    };
     cancel.onclick = function () { cleanup(); reject(new Error('Verificación PJN cancelada')); };
     btn.onclick = function () {
+      if (currentMode !== 'widget') {
+        alert('Para «Continuar» con enlace al servidor, usá el modo «Widget integrado» y completá el recuadro, o pulsá «Siguiente».');
+        return;
+      }
       var tok = leerTokenPjnModal();
       if (!tok || tok.length < 4) { alert('Completá el desafío del captcha antes de continuar.'); return; }
       cleanup();
-      resolve(tok);
+      resolve({ token: tok });
     };
-    if (_pjnCaptchaPoll) clearInterval(_pjnCaptchaPoll);
-    _pjnCaptchaPoll = setInterval(function () {
-      var tok = leerTokenPjnModal();
-      if (tok && tok.length >= 8) {
-        btn.disabled = false;
-        if (hint) hint.style.display = 'block';
-      }
-    }, 350);
-    injectPjnWidgetScript(prepareJson.sitekey || 'SCW').catch(function (err) {
-      if (_pjnCaptchaPoll) { clearInterval(_pjnCaptchaPoll); _pjnCaptchaPoll = null; }
-      cleanup();
-      reject(err);
-    });
+    if (mw) mw.onclick = function () { applyMode('widget'); };
+    if (mi) mi.onclick = function () { applyMode('iframe'); };
+    if (mt) mt.onclick = function () { applyMode('tab'); };
+    applyMode('widget');
   });
 }
 
-async function prepararSesionPjn(nombreBuscar, modo, cuilParam) {
+async function prepararSesionPjn(nombreBuscar, modo, cuilParam, turnstileToken) {
   var body = {};
   if (modo === 'cuil' && cuilParam) body.cuil = String(cuilParam).replace(/\D/g, '');
   else body.nombre = (nombreBuscar || '').trim();
+  if (turnstileToken) body.turnstile_token = turnstileToken;
   var r = await fetch(API_URL + '/pjn/prepare', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   var j = await r.json().catch(function () { return {}; });
-  if (!j.ok) throw new Error(j.error || ('Error PJN (' + r.status + ')'));
+  if (!j.ok) {
+    var err = j.error || ('Error PJN (' + r.status + ')');
+    if (err === 'turnstile_invalido') {
+      err = 'Verificaci\u00f3n humana rechazada o caducada. Recarg\u00e1 la p\u00e1gina e intent\u00e1 de nuevo.';
+    }
+    throw new Error(err);
+  }
   if (!j.needs_widget) return j.session_id;
-  var token = await mostrarModalPjnCaptcha(j);
+  var res = await mostrarModalPjnCaptcha(j);
+  if (res && res.skipped) return null;
+  var token = res && res.token ? res.token : '';
+  if (!token) throw new Error('Token de captcha vacío');
   var r2 = await fetch(API_URL + '/pjn/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -915,11 +1117,26 @@ async function iniciarBusqueda() {
   document.getElementById('resultados-section').style.display = 'none';
   document.getElementById('planes-promo').style.display = 'none';
 
+  var tsTok = '';
+  try {
+    await cargarConfigApiPublica();
+    tsTok = await esperarTurnstileAntesDePjn();
+  } catch (eTs) {
+    if (window.__PJN_TURNSTILE_SITEKEY) {
+      document.getElementById('btn-buscar').disabled = false;
+      var elTs = document.getElementById('buscar-error');
+      elTs.textContent = '\u26a0 Verificación humana (Turnstile): ' + (eTs && eTs.message ? eTs.message : 'reintentá');
+      elTs.style.display = 'block';
+      return;
+    }
+  }
+
   var pjnSessionId = null;
   try {
-    pjnSessionId = await prepararSesionPjn(nombre, modo, cuilParam);
+    pjnSessionId = await prepararSesionPjn(nombre, modo, cuilParam, tsTok);
   } catch (e) {
     document.getElementById('btn-buscar').disabled = false;
+    if (e && e.message && e.message.indexOf('cancelada') >= 0) return;
     var elPjn = document.getElementById('buscar-error');
     elPjn.textContent = '\u26a0 ' + (e && e.message ? e.message : 'No se pudo validar PJN');
     elPjn.style.display = 'block';
@@ -1319,6 +1536,7 @@ function descargarPDF() {
 
 document.addEventListener('DOMContentLoaded', function () {
   if (typeof toggleBusquedaModo === 'function') toggleBusquedaModo();
+  if (typeof cargarConfigApiPublica === 'function') cargarConfigApiPublica();
 });
 
 // Revisar si viene de un pago aprobado (refrescar perfil para ver créditos/plan al instante)

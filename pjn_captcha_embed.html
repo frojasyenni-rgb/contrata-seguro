@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Sin Referer en subrecursos: PJN devuelve ~247 B si el Referer no es de pjn.gov.ar -->
+  <meta name="referrer" content="no-referrer" />
+  <title>Captcha PJN</title>
+  <style>html,body{margin:0;padding:6px;font-family:system-ui,sans-serif;background:#f5f5f5}</style>
+</head>
+<body>
+  <div class="pjn-captcha" data-sitekey="SCW"></div>
+  <!-- Mismo origen que esta página: el servidor reenvía init.js con cabeceras aceptables para PJN -->
+  <script src="/pjn/captcha-init.js?sitekey=SCW"></script>
+</body>
+</html>

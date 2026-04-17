@@ -27,6 +27,9 @@ MP_WEBHOOK_SECRET = os.environ.get("MP_WEBHOOK_SECRET", "").strip()  # Tus integ
 APP_URL         = os.environ.get("APP_URL", "https://contrataseguro.ar")
 WA_INTERNO_NUM  = os.environ.get("WA_INTERNO_NUM", "5491135688283")
 ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "")
+# Opcional: Cloudflare Turnstile (humano) antes de /pjn/prepare — https://developers.cloudflare.com/turnstile/
+TURNSTILE_SITE_KEY = (os.environ.get("TURNSTILE_SITE_KEY") or "").strip()
+TURNSTILE_SECRET_KEY = (os.environ.get("TURNSTILE_SECRET_KEY") or "").strip()
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
 mp_sdk   = mercadopago.SDK(MP_ACCESS_TOKEN) if MP_ACCESS_TOKEN else None
@@ -312,12 +315,41 @@ def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session
 @app.route("/", methods=["GET"])
 def index():
     """Sitio en Railway: HTML en raíz; metadatos JSON en /api/info."""
-    return send_file(os.path.join(_BASE_DIR, "index.html"), mimetype="text/html; charset=utf-8")
+    resp = send_file(
+        os.path.join(_BASE_DIR, "index.html"),
+        mimetype="text/html; charset=utf-8",
+    )
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
+
+
+def _turnstile_verify(token: str, remote_ip: str) -> bool:
+    if not TURNSTILE_SECRET_KEY:
+        return True
+    if not (token or "").strip():
+        return False
+    try:
+        r = requests.post(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data={
+                "secret": TURNSTILE_SECRET_KEY,
+                "response": token.strip(),
+                "remoteip": (remote_ip or "").strip(),
+            },
+            timeout=12,
+        )
+        data = r.json()
+        return bool(data.get("success"))
+    except Exception:
+        return False
 
 
 @app.route("/api/info", methods=["GET"])
 def api_info():
-    return jsonify({"servicio": API_SERVICIO, "version": API_VERSION})
+    out = {"servicio": API_SERVICIO, "version": API_VERSION}
+    if TURNSTILE_SITE_KEY:
+        out["turnstile_site_key"] = TURNSTILE_SITE_KEY
+    return jsonify(out)
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -367,6 +399,22 @@ def pjn_captcha_init_js():
         )
 
 
+@app.route("/pjn/captcha-embed.html", methods=["GET"])
+def pjn_captcha_embed_html():
+    """
+    Página mínima same-origin para el iframe del captcha.
+    El documento usa referrer no-referrer para que el iframe interno del widget
+    no envíe Referer de un dominio externo (PJN responde HTML truncado ~247 B).
+    """
+    resp = send_file(
+        os.path.join(_BASE_DIR, "pjn_captcha_embed.html"),
+        mimetype="text/html; charset=utf-8",
+    )
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/pjn/prepare", methods=["POST"])
 def pjn_prepare_route():
     """Abre sesión SCW PJN y, si aplica, deja listo el widget para resolverlo en el front."""
@@ -386,6 +434,10 @@ def pjn_prepare_route():
             pass
     if len(nombre) < 2:
         return jsonify({"ok": False, "error": "nombre_requerido"}), 400
+    if TURNSTILE_SECRET_KEY:
+        tf = (data.get("turnstile_token") or data.get("cf-turnstile-response") or "").strip()
+        if not _turnstile_verify(tf, request.remote_addr or ""):
+            return jsonify({"ok": False, "error": "turnstile_invalido"}), 403
     out = pjn_prepare(nombre)
     if not out.get("ok"):
         return jsonify(out), 400
