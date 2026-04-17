@@ -7,6 +7,7 @@ import json, time, sys, re, logging
 from urllib.parse import urljoin
 
 from cuitonline_lookup import lookup_cuitonline
+from pjn_session import es_captcha_pjn, load_cookies_file
 
 
 class _StdoutLogHandler(logging.Handler):
@@ -90,11 +91,18 @@ def _parse_args():
         nargs="*",
         help="Nombre y apellido (obligatorio si no se pasa --cuil). Ej.: GARCIA JUAN CARLOS",
     )
+    p.add_argument(
+        "--pjn-cookies-file",
+        default="",
+        metavar="RUTA",
+        help="JSON de cookies PJN tras resolver el desafío en el sitio (ver API /pjn/prepare y /pjn/verify).",
+    )
     return p.parse_args()
 
 
 ARGS = _parse_args()
 CUITONLINE_META = {}
+PJN_COOKIES_FILE = (ARGS.pjn_cookies_file or "").strip()
 
 if ARGS.cuil:
     log.info("Modo CUIL: resolviendo denominación en CuitOnline para %r", ARGS.cuil)
@@ -610,27 +618,15 @@ def buscar_scba():
 
 def buscar_pjn():
     BASE_PJN = "https://scw.pjn.gov.ar"
-    def es_captcha_pjn(html):
-        if not html:
-            return False
-        t = html.lower()
-        # Evita falsos positivos por texto genérico; busca señales fuertes.
-        señales_fuertes = [
-            "g-recaptcha",
-            "h-captcha",
-            "cf-challenge",
-            "turnstile",
-            "recaptcha/api.js",
-            "name=\"campoverificador\"",
-            "id=\"campoverificador\"",
-        ]
-        if any(s in t for s in señales_fuertes):
-            return True
-        # Fallback semántico: desafío/verificador en contexto de bloqueo.
-        return ("desafio" in t or "desafío" in t) and ("verificador" in t or "captcha" in t)
     try:
         log.info("PJN: iniciando home.seam (caratula=%r)", NOMBRE)
         s = requests.Session(); s.headers.update(HDR)
+        if PJN_COOKIES_FILE and os.path.isfile(PJN_COOKIES_FILE):
+            try:
+                load_cookies_file(s, PJN_COOKIES_FILE)
+                log.info("PJN: cookies de sesión humana cargadas desde %s", PJN_COOKIES_FILE)
+            except Exception:
+                log.exception("PJN: no se pudieron cargar cookies desde %s", PJN_COOKIES_FILE)
         r = s.get(f"{BASE_PJN}/scw/home.seam", timeout=15)
         log.debug("PJN: GET home HTTP %s len=%s", r.status_code, len(r.text or ""))
         if es_captcha_pjn(r.text):
@@ -647,6 +643,7 @@ def buscar_pjn():
                 log.info("PJN: POST busqueda camara=%s (%s)", cod, nombre)
                 r2 = s.post(f"{BASE_PJN}/scw/home.seam", data={
                     "javax.faces.ViewState": vstate, "formPublica": "formPublica",
+                    "formPublica:expedienteTab-value": "porParte",
                     "formPublica:caratula": NOMBRE, "formPublica:camara": cod,
                     "formPublica:btnSearch": "Buscar"}, timeout=20)
                 log.debug("PJN: POST %s HTTP %s len=%s", cod, r2.status_code, len(r2.text or ""))

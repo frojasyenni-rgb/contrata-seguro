@@ -246,6 +246,18 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
   </div>
 </div>
 
+<!-- Modal verificación PJN (widget oficial) -->
+<div class="modal-overlay" id="modal-pjn-captcha" style="display:none;z-index:1100">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">Verificación PJN</div>
+    <div class="modal-sub">Completá el desafío del Poder Judicial (Capital Federal). Luego pulsá <strong>Continuar</strong> para seguir con la búsqueda.</div>
+    <div id="pjn-captcha-host-modal" style="min-height:88px;margin:12px 0"></div>
+    <p id="pjn-captcha-hint" style="font-size:12px;color:var(--gris-500);margin-bottom:10px;display:none">Listo: podés continuar.</p>
+    <button type="button" class="btn btn-primary" id="btn-pjn-captcha-continuar" disabled>Continuar</button>
+    <div style="text-align:right;margin-top:10px"><a class="link" style="font-size:12px" id="link-pjn-captcha-cancel">Cancelar</a></div>
+  </div>
+</div>
+
 <!-- ââââââââââââââââââââââââââââââââââââââ -->
 <!-- PAGE: INICIO -->
 <!-- ââââââââââââââââââââââââââââââââââââââ -->
@@ -734,6 +746,112 @@ function unhoverPlan(card) {
 
 let evtSource = null; // conexión SSE activa
 let activeSearchId = 0; // evita que callbacks viejos pisen búsquedas nuevas
+let _pjnCaptchaPoll = null;
+
+function closePjnCaptchaModal() {
+  var m = document.getElementById('modal-pjn-captcha');
+  if (m) { m.style.display = 'none'; m.classList.remove('open'); }
+  if (_pjnCaptchaPoll) { clearInterval(_pjnCaptchaPoll); _pjnCaptchaPoll = null; }
+}
+
+function leerTokenPjnModal() {
+  var host = document.getElementById('pjn-captcha-host-modal');
+  if (!host) return '';
+  var inp = host.querySelector('#captcha-response') || host.querySelector('input[name="captcha-response"]');
+  return inp && inp.value ? String(inp.value).trim() : '';
+}
+
+async function injectPjnWidgetScript(sitekey) {
+  var host = document.getElementById('pjn-captcha-host-modal');
+  host.innerHTML = '';
+  var div = document.createElement('div');
+  div.className = 'pjn-captcha';
+  div.setAttribute('data-sitekey', sitekey);
+  host.appendChild(div);
+  var srcUrl = 'https://captcha.pjn.gov.ar/api/init.js?sitekey=' + encodeURIComponent(sitekey);
+  var code = await fetch(srcUrl).then(function (r) {
+    if (!r.ok) throw new Error('init.js HTTP ' + r.status);
+    return r.text();
+  });
+  var blob = new Blob([code], { type: 'text/javascript' });
+  var blobUrl = URL.createObjectURL(blob);
+  await new Promise(function (resolve, reject) {
+    var sc = document.createElement('script');
+    sc.src = blobUrl;
+    sc.async = true;
+    sc.onload = function () {
+      try { URL.revokeObjectURL(blobUrl); } catch (e1) {}
+      resolve();
+    };
+    sc.onerror = function () {
+      try { URL.revokeObjectURL(blobUrl); } catch (e2) {}
+      reject(new Error('No se pudo cargar el script del captcha'));
+    };
+    document.head.appendChild(sc);
+  });
+}
+
+function mostrarModalPjnCaptcha(prepareJson) {
+  return new Promise(function (resolve, reject) {
+    var m = document.getElementById('modal-pjn-captcha');
+    var btn = document.getElementById('btn-pjn-captcha-continuar');
+    var hint = document.getElementById('pjn-captcha-hint');
+    var cancel = document.getElementById('link-pjn-captcha-cancel');
+    if (!m || !btn) { reject(new Error('UI')); return; }
+    btn.disabled = true;
+    if (hint) hint.style.display = 'none';
+    m.style.display = 'flex';
+    m.classList.add('open');
+    function cleanup() {
+      closePjnCaptchaModal();
+      btn.onclick = null;
+      cancel.onclick = null;
+    }
+    cancel.onclick = function () { cleanup(); reject(new Error('Verificación PJN cancelada')); };
+    btn.onclick = function () {
+      var tok = leerTokenPjnModal();
+      if (!tok || tok.length < 4) { alert('Completá el desafío del captcha antes de continuar.'); return; }
+      cleanup();
+      resolve(tok);
+    };
+    if (_pjnCaptchaPoll) clearInterval(_pjnCaptchaPoll);
+    _pjnCaptchaPoll = setInterval(function () {
+      var tok = leerTokenPjnModal();
+      if (tok && tok.length >= 8) {
+        btn.disabled = false;
+        if (hint) hint.style.display = 'block';
+      }
+    }, 350);
+    injectPjnWidgetScript(prepareJson.sitekey || 'SCW').catch(function (err) {
+      if (_pjnCaptchaPoll) { clearInterval(_pjnCaptchaPoll); _pjnCaptchaPoll = null; }
+      cleanup();
+      reject(err);
+    });
+  });
+}
+
+async function prepararSesionPjn(nombreBuscar, modo, cuilParam) {
+  var body = {};
+  if (modo === 'cuil' && cuilParam) body.cuil = String(cuilParam).replace(/\D/g, '');
+  else body.nombre = (nombreBuscar || '').trim();
+  var r = await fetch(API_URL + '/pjn/prepare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  var j = await r.json().catch(function () { return {}; });
+  if (!j.ok) throw new Error(j.error || ('Error PJN (' + r.status + ')'));
+  if (!j.needs_widget) return j.session_id;
+  var token = await mostrarModalPjnCaptcha(j);
+  var r2 = await fetch(API_URL + '/pjn/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: j.session_id, captcha_response: token }),
+  });
+  var vj = await r2.json().catch(function () { return {}; });
+  if (!vj.ok) throw new Error(vj.error || 'Captcha rechazado');
+  return j.session_id;
+}
 
 function toggleBusquedaModo() {
   const modo = document.getElementById('inp-modo-busqueda').value;
@@ -802,8 +920,20 @@ async function iniciarBusqueda() {
   document.getElementById('btn-buscar').disabled = true;
   document.getElementById('buscar-error').style.display = 'none';
   document.getElementById('resultados-section').style.display = 'none';
-  document.getElementById('progress-card').style.display = 'block';
   document.getElementById('planes-promo').style.display = 'none';
+
+  var pjnSessionId = null;
+  try {
+    pjnSessionId = await prepararSesionPjn(nombre, modo, cuilParam);
+  } catch (e) {
+    document.getElementById('btn-buscar').disabled = false;
+    var elPjn = document.getElementById('buscar-error');
+    elPjn.textContent = '\u26a0 ' + (e && e.message ? e.message : 'No se pudo validar PJN');
+    elPjn.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('progress-card').style.display = 'block';
   document.getElementById('prog-bar').style.width = '0%';
   document.getElementById('prog-titulo').textContent = 'Buscando "' + etiquetaBusqueda + '"...';
   document.getElementById('prog-sub').textContent = 'Iniciando...';
@@ -814,6 +944,7 @@ async function iniciarBusqueda() {
   if (cuilParam) url += '&cuil=' + encodeURIComponent(cuilParam);
   else url += '&nombre=' + encodeURIComponent(nombre);
   if (token) url += '&token=' + encodeURIComponent(token);
+  if (pjnSessionId) url += '&pjn_session_id=' + encodeURIComponent(pjnSessionId);
 
   try {
     evtSource = new EventSource(url);

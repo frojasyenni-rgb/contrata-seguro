@@ -4,10 +4,12 @@ Flask + Supabase + MercadoPago + SSE streaming + Flujo PJN pendiente
 """
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file
 from flask_cors import CORS
-import subprocess, json, os, re, sys, threading, queue, time, hmac, hashlib
+import subprocess, json, os, re, sys, threading, queue, time, hmac, hashlib, tempfile, uuid
 
 import mercadopago
 from supabase import create_client
+
+from pjn_session import export_cookies_path, prepare as pjn_prepare, touch as pjn_touch, verify as pjn_verify
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
@@ -213,25 +215,46 @@ def _api_scraper_trace(msg):
     print(f"[API/buscar_stream] {msg}", flush=True, file=sys.stderr)
 
 
-def _argv_buscar_simple(nombre, cuil=None, caratula="apellido"):
+def _argv_buscar_simple(nombre, cuil=None, caratula="apellido", pjn_cookies_file=None):
     """CLI de buscar_simple: --cuil o nombre con --caratula apellido|completo."""
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
     caratula = (caratula or "apellido").strip().lower()
     if caratula not in ("apellido", "completo"):
         caratula = "apellido"
     base = [sys.executable, script, "--caratula", caratula]
+    if pjn_cookies_file:
+        base += ["--pjn-cookies-file", pjn_cookies_file]
     if cuil:
         dig = re.sub(r"\D", "", str(cuil))
         return base + ["--cuil", dig]
     return base + [nombre.strip()]
 
 
-def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido"):
+def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session_id=None):
+    pjn_cookies_path = None
     try:
+        if pjn_session_id:
+            pjn_cookies_path = os.path.join(
+                tempfile.gettempdir(),
+                f"pjn_cookies_{os.getpid()}_{uuid.uuid4().hex}.json",
+            )
+            if not export_cookies_path(pjn_session_id, pjn_cookies_path):
+                _api_scraper_trace(
+                    f"pjn_session_id inválido o expirado: {pjn_session_id!r}",
+                )
+                pjn_cookies_path = None
+            else:
+                pjn_touch(pjn_session_id)
         _api_scraper_trace(
-            f"lanzando scraper nombre={nombre!r} cuil={cuil!r} caratula={caratula!r}",
+            f"lanzando scraper nombre={nombre!r} cuil={cuil!r} caratula={caratula!r} "
+            f"pjn_session={'ok' if pjn_cookies_path else 'no'}",
         )
-        argv = _argv_buscar_simple(nombre, cuil=cuil, caratula=caratula)
+        argv = _argv_buscar_simple(
+            nombre,
+            cuil=cuil,
+            caratula=caratula,
+            pjn_cookies_file=pjn_cookies_path,
+        )
         # stderr del hijo al stderr del proceso Flask/Gunicorn: logs en tiempo real (Railway, local).
         proc = subprocess.Popen(
             argv,
@@ -277,7 +300,13 @@ def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido"):
             q.put(("error", "Sin resultado (revisar logs del servidor / buscar_simple)"))
     except subprocess.TimeoutExpired: q.put(("error", "Timeout"))
     except Exception as e: q.put(("error", str(e)))
-    finally: q.put(("done", None))
+    finally:
+        if pjn_cookies_path and os.path.isfile(pjn_cookies_path):
+            try:
+                os.remove(pjn_cookies_path)
+            except OSError:
+                pass
+        q.put(("done", None))
 
 @app.route("/", methods=["GET"])
 def index():
@@ -293,12 +322,52 @@ def api_info():
 def health():
     return jsonify({"status": "ok", "servicio": API_SERVICIO, "version": API_VERSION})
 
+
+@app.route("/pjn/prepare", methods=["POST"])
+def pjn_prepare_route():
+    """Abre sesión SCW PJN y, si aplica, deja listo el widget para resolverlo en el front."""
+    data = request.get_json(silent=True) or {}
+    nombre = (data.get("nombre") or "").strip()
+    cuil = (data.get("cuil") or "").strip()
+    if not nombre and cuil:
+        try:
+            from cuitonline_lookup import lookup_cuitonline
+
+            dig = re.sub(r"\D", "", cuil)
+            if len(dig) == 11:
+                co = lookup_cuitonline(dig)
+                if co.ok:
+                    nombre = (co.nombre or "").strip().upper()
+        except Exception:
+            pass
+    if len(nombre) < 2:
+        return jsonify({"ok": False, "error": "nombre_requerido"}), 400
+    out = pjn_prepare(nombre)
+    if not out.get("ok"):
+        return jsonify(out), 400
+    return jsonify(out)
+
+
+@app.route("/pjn/verify", methods=["POST"])
+def pjn_verify_route():
+    """Envía el token del widget (#captcha-response) con la misma sesión que /pjn/prepare."""
+    data = request.get_json(silent=True) or {}
+    sid = (data.get("session_id") or "").strip()
+    token = (data.get("captcha_response") or data.get("token") or "").strip()
+    if not sid:
+        return jsonify({"ok": False, "error": "session_id_requerido"}), 400
+    out = pjn_verify(sid, token)
+    if not out.get("ok"):
+        return jsonify(out), 400
+    return jsonify(out)
+
 @app.route("/buscar/stream", methods=["GET"])
 def buscar_stream():
     nombre = request.args.get("nombre", "").strip()
     cuil = request.args.get("cuil", "").strip() or None
     caratula = request.args.get("caratula", "apellido").strip().lower()
     token = request.args.get("token", "")
+    pjn_session_id = (request.args.get("pjn_session_id") or "").strip() or None
     if cuil:
         dig = re.sub(r"\D", "", cuil)
         if len(dig) != 11:
@@ -336,7 +405,7 @@ def buscar_stream():
     t = threading.Thread(
         target=correr_scraper_stream,
         args=(nombre or "", q),
-        kwargs={"cuil": cuil, "caratula": caratula},
+        kwargs={"cuil": cuil, "caratula": caratula, "pjn_session_id": pjn_session_id},
         daemon=True,
     )
     t.start()
