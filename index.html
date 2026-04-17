@@ -732,7 +732,8 @@ function unhoverPlan(card) {
   }
 }
 
-let evtSource = null; // global para poder cancelar entre búsquedas
+let evtSource = null; // conexión SSE activa
+let activeSearchId = 0; // evita que callbacks viejos pisen búsquedas nuevas
 
 function toggleBusquedaModo() {
   const modo = document.getElementById('inp-modo-busqueda').value;
@@ -749,8 +750,21 @@ function toggleBusquedaModo() {
 }
 
 async function iniciarBusqueda() {
+  const searchId = ++activeSearchId;
+
+  function isActiveSearch() {
+    return searchId === activeSearchId;
+  }
+
+  function closeIfActive(source) {
+    try { source.close(); } catch (e) {}
+    if (isActiveSearch() && evtSource === source) {
+      evtSource = null;
+    }
+  }
+
   // RESET: cancelar búsqueda anterior si existe
-  if (evtSource) { try { evtSource.close(); } catch(e) {} evtSource = null; }
+  if (evtSource) { closeIfActive(evtSource); }
   // RESET UI al estado inicial
   const secBuscando = document.getElementById('seccion-buscando');
   const secResultados = document.getElementById('seccion-resultados');
@@ -813,8 +827,10 @@ async function iniciarBusqueda() {
   }
 
   // Timeout de seguridad: 310 segundos
+  const currentSource = evtSource;
   const timeout = setTimeout(() => {
-    evtSource.close();
+    if (!isActiveSearch() || evtSource !== currentSource) return;
+    closeIfActive(currentSource);
     document.getElementById('progress-card').style.display = 'none';
     document.getElementById('btn-buscar').disabled = false;
     const el = document.getElementById('buscar-error');
@@ -822,7 +838,8 @@ async function iniciarBusqueda() {
     el.style.display = 'block';
   }, 310000);
 
-  evtSource.onmessage = async (e) => {
+  currentSource.onmessage = async (e) => {
+    if (!isActiveSearch() || evtSource !== currentSource) return;
     try {
       const msg = JSON.parse(e.data);
       if (msg.tipo === 'progreso') {
@@ -838,7 +855,7 @@ async function iniciarBusqueda() {
         }
       } else if (msg.tipo === 'resultado') {
         clearTimeout(timeout);
-        evtSource.close();
+        closeIfActive(currentSource);
         resultadoActual = msg.resultado;
         resultadoActual._nombre = (msg.resultado.nombre || nombre || etiquetaBusqueda || '').trim();
         document.getElementById('prog-bar').style.width = '100%';
@@ -854,7 +871,7 @@ async function iniciarBusqueda() {
         document.getElementById('btn-buscar').disabled = false;
       } else if (msg.tipo === 'error') {
         clearTimeout(timeout);
-        evtSource.close();
+        closeIfActive(currentSource);
         document.getElementById('progress-card').style.display = 'none';
         document.getElementById('btn-buscar').disabled = false;
         const el = document.getElementById('buscar-error');
@@ -873,15 +890,16 @@ async function iniciarBusqueda() {
         if (ar) ar.innerHTML += '<div style="background:#fff3cd;border:1px solid #f0c040;border-radius:8px;padding:10px 14px;font-size:13px;color:#856404;margin-top:8px">\u23f3 <strong>Capital Federal en proceso:</strong> La validaci\u00f3n del sistema judicial de Capital est\u00e1 siendo completada. Te notificaremos cuando est\u00e9 lista.</div>';
       } else if (msg.tipo === 'fin') {
         clearTimeout(timeout);
-        evtSource.close();
+        closeIfActive(currentSource);
         document.getElementById('btn-buscar').disabled = false;
       }
     } catch(err) {}
   };
 
-  evtSource.onerror = () => {
+  currentSource.onerror = () => {
+    if (!isActiveSearch() || evtSource !== currentSource) return;
     clearTimeout(timeout);
-    evtSource.close();
+    closeIfActive(currentSource);
     document.getElementById('progress-card').style.display = 'none';
     document.getElementById('btn-buscar').disabled = false;
     const el = document.getElementById('buscar-error');
