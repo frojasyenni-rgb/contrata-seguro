@@ -82,7 +82,7 @@ def _fetch_init_js() -> str:
         return text
     r = requests.get(
         "https://captcha.pjn.gov.ar/api/init.js?sitekey=SCW",
-        headers={**_HDR, "Referer": _HOME},
+        headers={**_HDR, "Referer": _HOME, "Origin": "https://scw.pjn.gov.ar"},
         timeout=20,
     )
     r.raise_for_status()

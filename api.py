@@ -7,6 +7,7 @@ from flask_cors import CORS
 import subprocess, json, os, re, sys, threading, queue, time, hmac, hashlib, tempfile, uuid
 
 import mercadopago
+import requests
 from supabase import create_client
 
 from pjn_session import export_cookies_path, prepare as pjn_prepare, touch as pjn_touch, verify as pjn_verify
@@ -321,6 +322,49 @@ def api_info():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "servicio": API_SERVICIO, "version": API_VERSION})
+
+
+_PJN_INIT_HDR = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "*/*",
+    "Accept-Language": "es-AR,es;q=0.9",
+    "Referer": "https://scw.pjn.gov.ar/scw/home.seam",
+    "Origin": "https://scw.pjn.gov.ar",
+}
+
+
+@app.route("/pjn/captcha-init.js", methods=["GET"])
+def pjn_captcha_init_js():
+    """
+    Sirve init.js del captcha PJN sin caché agresiva del navegador.
+    El widget embebido rechaza Referer de dominios ajenos a PJN (~247 B en vez del HTML real).
+    El HTML del front debe usar <meta name="referrer" content="no-referrer"> para el iframe.
+    """
+    try:
+        r = requests.get(
+            "https://captcha.pjn.gov.ar/api/init.js?sitekey=SCW",
+            headers=_PJN_INIT_HDR,
+            timeout=25,
+        )
+        r.raise_for_status()
+        body = r.text or ""
+        return Response(
+            body,
+            mimetype="application/javascript; charset=utf-8",
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+            },
+        )
+    except Exception as e:
+        return Response(
+            "/* pjn captcha-init error: " + str(e).replace("*/", "* /") + " */\n",
+            mimetype="application/javascript; charset=utf-8",
+            status=502,
+        )
 
 
 @app.route("/pjn/prepare", methods=["POST"])

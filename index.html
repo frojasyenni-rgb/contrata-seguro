@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- PJN: el iframe del captcha no envía Referer de tu dominio (bloquea el widget si no es pjn.gov.ar). -->
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://captcha.pjn.gov.ar" crossorigin>
+<link rel="preconnect" href="https://scw.pjn.gov.ar" crossorigin>
 <!-- Si servís el HTML en GitHub Pages y el API en otro host (p. ej. Railway), poné la URL base del backend aquí, sin barra final. -->
 <meta name="api-base" content="">
 <title>Contrata Seguro — Consulta Judicial Laboral</title>
@@ -250,7 +254,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 <div class="modal-overlay" id="modal-pjn-captcha" style="display:none;z-index:1100">
   <div class="modal" style="max-width:460px">
     <div class="modal-title">Verificación PJN</div>
-    <div class="modal-sub">Completá el desafío del Poder Judicial (Capital Federal). Luego pulsá <strong>Continuar</strong> para seguir con la búsqueda.</div>
+    <div class="modal-sub">Completá el desafío del Poder Judicial (Capital Federal). Luego pulsá <strong>Continuar</strong> para seguir con la búsqueda. Si ves &quot;Captcha no disponible&quot;, probá sin bloqueadores de anuncios o otra red.</div>
     <div id="pjn-captcha-host-modal" style="min-height:88px;margin:12px 0"></div>
     <p id="pjn-captcha-hint" style="font-size:12px;color:var(--gris-500);margin-bottom:10px;display:none">Listo: podés continuar.</p>
     <button type="button" class="btn btn-primary" id="btn-pjn-captcha-continuar" disabled>Continuar</button>
@@ -761,32 +765,21 @@ function leerTokenPjnModal() {
   return inp && inp.value ? String(inp.value).trim() : '';
 }
 
-async function injectPjnWidgetScript(sitekey) {
-  var host = document.getElementById('pjn-captcha-host-modal');
-  host.innerHTML = '';
-  var div = document.createElement('div');
-  div.className = 'pjn-captcha';
-  div.setAttribute('data-sitekey', sitekey);
-  host.appendChild(div);
-  var srcUrl = 'https://captcha.pjn.gov.ar/api/init.js?sitekey=' + encodeURIComponent(sitekey);
-  var code = await fetch(srcUrl).then(function (r) {
-    if (!r.ok) throw new Error('init.js HTTP ' + r.status);
-    return r.text();
-  });
-  var blob = new Blob([code], { type: 'text/javascript' });
-  var blobUrl = URL.createObjectURL(blob);
-  await new Promise(function (resolve, reject) {
+function injectPjnWidgetScript(sitekey) {
+  return new Promise(function (resolve, reject) {
+    var host = document.getElementById('pjn-captcha-host-modal');
+    host.innerHTML = '';
+    var div = document.createElement('div');
+    div.className = 'pjn-captcha';
+    div.setAttribute('data-sitekey', sitekey);
+    host.appendChild(div);
+    document.querySelectorAll('script[data-cs-pjn-init]').forEach(function (n) { n.remove(); });
     var sc = document.createElement('script');
-    sc.src = blobUrl;
+    sc.setAttribute('data-cs-pjn-init', '1');
     sc.async = true;
-    sc.onload = function () {
-      try { URL.revokeObjectURL(blobUrl); } catch (e1) {}
-      resolve();
-    };
-    sc.onerror = function () {
-      try { URL.revokeObjectURL(blobUrl); } catch (e2) {}
-      reject(new Error('No se pudo cargar el script del captcha'));
-    };
+    sc.src = API_URL + '/pjn/captcha-init.js?sitekey=' + encodeURIComponent(sitekey) + '&_=' + Date.now();
+    sc.onload = function () { resolve(); };
+    sc.onerror = function () { reject(new Error('No se pudo cargar el script PJN (¿API caída o bloqueador?)')); };
     document.head.appendChild(sc);
   });
 }
