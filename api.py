@@ -4,7 +4,7 @@ Flask + Supabase + MercadoPago + SSE streaming + Flujo PJN pendiente
 """
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file
 from flask_cors import CORS
-import subprocess, json, os, sys, threading, queue, time
+import subprocess, json, os, re, sys, threading, queue, time, hmac, hashlib
 
 import mercadopago
 from supabase import create_client
@@ -18,7 +18,9 @@ API_VERSION = "2.2"
 
 SUPABASE_URL    = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY    = os.environ.get("SUPABASE_SERVICE_KEY", "")
-MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN", "")
+# Credenciales MP: el Access Token (API) y la clave de firma de webhooks son distintos.
+MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN", "")  # Credenciales → Access token (crear preferencia, GET payment)
+MP_WEBHOOK_SECRET = os.environ.get("MP_WEBHOOK_SECRET", "").strip()  # Tus integraciones → Webhooks → clave secreta
 APP_URL         = os.environ.get("APP_URL", "https://contrataseguro.ar")
 WA_INTERNO_NUM  = os.environ.get("WA_INTERNO_NUM", "5491135688283")
 ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "")
@@ -34,6 +36,120 @@ PLANES = {
 
 # Mercado Pago: statement_descriptor max 13 caracteres (doc oficial).
 _MP_STATEMENT_DESCRIPTOR = "CONTRATA SEGU"
+_MP_WEBHOOK_UNSIGNED_LOGGED = False
+
+
+def _mp_evento_es_pago(payload):
+    ev = (
+        payload.get("type")
+        or payload.get("action")
+        or request.args.get("topic", "")
+        or ""
+    ).lower()
+    return "payment" in ev
+
+
+def _mp_extraer_payment_id(payload):
+    pid = payload.get("data", {}).get("id")
+    if pid is None:
+        pid = request.args.get("data.id") or request.args.get("id")
+    return str(pid) if pid not in (None, "") else ""
+
+
+def _mp_manifest_data_id_for_signature(data_id_raw):
+    s = str(data_id_raw).strip()
+    if re.fullmatch(r"[a-zA-Z0-9]+", s):
+        return s.lower()
+    return s
+
+
+def _mp_manifest_string(data_id, x_request_id, ts):
+    parts = []
+    if data_id is not None and str(data_id).strip() != "":
+        parts.append(f"id:{_mp_manifest_data_id_for_signature(data_id)};")
+    if x_request_id:
+        parts.append(f"request-id:{x_request_id};")
+    if ts:
+        parts.append(f"ts:{ts};")
+    return "".join(parts)
+
+
+def _mp_parse_x_signature_header(header_val):
+    if not header_val:
+        return None, None
+    ts, v1 = None, None
+    for part in header_val.split(","):
+        part = part.strip()
+        if "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        k, v = k.strip(), v.strip()
+        if k == "ts":
+            ts = v
+        elif k == "v1":
+            v1 = v
+    return ts, v1
+
+
+def _mp_verificar_firma_webhook(payment_id_for_manifest):
+    global _MP_WEBHOOK_UNSIGNED_LOGGED
+    if not MP_WEBHOOK_SECRET:
+        if not _MP_WEBHOOK_UNSIGNED_LOGGED:
+            print("[MP] MP_WEBHOOK_SECRET no definida: se aceptan webhooks sin validar firma", flush=True)
+            _MP_WEBHOOK_UNSIGNED_LOGGED = True
+        return True
+    x_sig = request.headers.get("x-signature") or request.headers.get("X-Signature")
+    if not x_sig:
+        return False
+    ts, v1 = _mp_parse_x_signature_header(x_sig)
+    if not ts or not v1:
+        return False
+    data_id = request.args.get("data.id") or payment_id_for_manifest or ""
+    x_rid = request.headers.get("x-request-id") or request.headers.get("X-Request-Id") or ""
+    manifest = _mp_manifest_string(data_id, x_rid, ts)
+    expected = hmac.new(
+        MP_WEBHOOK_SECRET.encode("utf-8"),
+        manifest.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, v1)
+
+
+def _mp_extraer_preference_id(pay_data):
+    pid = pay_data.get("preference_id")
+    if pid is None and isinstance(pay_data.get("preference"), dict):
+        pid = pay_data["preference"].get("id")
+    s = str(pid or "").strip()
+    return s or None
+
+
+def _mp_claim_pago_idempotente(usuario_id, plan_key, plan, preference_id, payment_id, monto):
+    """Insert único por mp_payment_id antes de acreditar; evita doble crédito con webhooks duplicados."""
+    if not supabase:
+        return "ok"
+    row = {
+        "usuario_id": usuario_id,
+        "mp_preference_id": preference_id,
+        "mp_payment_id": str(payment_id),
+        "tipo": plan_key,
+        "monto": monto,
+        "creditos_agregados": plan["creditos"],
+        "estado": "aprobado",
+    }
+    try:
+        supabase.table("pagos").insert(row).execute()
+    except Exception as e:
+        err = str(e).lower()
+        if "duplicate" in err or "unique" in err or "23505" in err:
+            return "duplicate"
+        print(f"[MP] claim insert pagos: {e}", flush=True)
+        return "error"
+    if preference_id:
+        try:
+            supabase.table("pagos").delete().eq("mp_preference_id", preference_id).eq("estado", "pendiente").execute()
+        except Exception as e:
+            print(f"[MP] limpiar fila pendiente: {e}", flush=True)
+    return "ok"
 
 def get_perfil(user_id):
     if not supabase: return None
@@ -52,12 +168,6 @@ def verificar_token(req):
         if user and user.user: return user.user, None
         return None, "Token invalido"
     except Exception as e:
-        try:
-            import jwt as pyjwt
-            payload = pyjwt.decode(token, options={"verify_signature": False})
-            uid = payload.get("sub")
-            if uid: return type('obj',(object,),{'id':uid,'email':payload.get('email','')})(), None
-        except: pass
         return None, str(e)
 
 def enviar_alerta_wa_interno(nombre, usuario_email, consulta_id):
@@ -103,13 +213,28 @@ def _api_scraper_trace(msg):
     print(f"[API/buscar_stream] {msg}", flush=True, file=sys.stderr)
 
 
-def correr_scraper_stream(nombre, q):
+def _argv_buscar_simple(nombre, cuil=None, caratula="apellido"):
+    """CLI de buscar_simple: --cuil o nombre con --caratula apellido|completo."""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
+    caratula = (caratula or "apellido").strip().lower()
+    if caratula not in ("apellido", "completo"):
+        caratula = "apellido"
+    base = [sys.executable, script, "--caratula", caratula]
+    if cuil:
+        dig = re.sub(r"\D", "", str(cuil))
+        return base + ["--cuil", dig]
+    return base + [nombre.strip()]
+
+
+def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido"):
     try:
-        _api_scraper_trace(f"lanzando scraper nombre={nombre!r} (solo nombre, sin DNI/CUIL)")
-        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
+        _api_scraper_trace(
+            f"lanzando scraper nombre={nombre!r} cuil={cuil!r} caratula={caratula!r}",
+        )
+        argv = _argv_buscar_simple(nombre, cuil=cuil, caratula=caratula)
         # stderr del hijo al stderr del proceso Flask/Gunicorn: logs en tiempo real (Railway, local).
         proc = subprocess.Popen(
-            [sys.executable, script, nombre.upper()],
+            argv,
             stdout=subprocess.PIPE,
             stderr=sys.stderr,
             text=True, bufsize=1,
@@ -171,8 +296,14 @@ def health():
 @app.route("/buscar/stream", methods=["GET"])
 def buscar_stream():
     nombre = request.args.get("nombre", "").strip()
+    cuil = request.args.get("cuil", "").strip() or None
+    caratula = request.args.get("caratula", "apellido").strip().lower()
     token = request.args.get("token", "")
-    if not nombre or len(nombre) < 2:
+    if cuil:
+        dig = re.sub(r"\D", "", cuil)
+        if len(dig) != 11:
+            return jsonify({"error": "CUIL/CUIT invalido (debe tener 11 digitos)"}), 400
+    elif not nombre or len(nombre) < 2:
         return jsonify({"error": "Nombre invalido"}), 400
 
     usuario_id = None; usar_credito = False; usuario_email = ""
@@ -196,13 +327,18 @@ def buscar_stream():
         except: pass
 
     print(
-        f"[API/buscar_stream] petición nombre={nombre!r}",
+        f"[API/buscar_stream] petición nombre={nombre!r} cuil={cuil!r} caratula={caratula!r}",
         flush=True,
         file=sys.stderr,
     )
 
     q = queue.Queue()
-    t = threading.Thread(target=correr_scraper_stream, args=(nombre, q), daemon=True)
+    t = threading.Thread(
+        target=correr_scraper_stream,
+        args=(nombre or "", q),
+        kwargs={"cuil": cuil, "caratula": caratula},
+        daemon=True,
+    )
     t.start()
 
     def generate():
@@ -236,9 +372,14 @@ def buscar_stream():
 
         if resultado_para_guardar:
             estado_pjn  = resultado_para_guardar.get("estado_pjn", "ok")
-            consulta_id = guardar_consulta(usuario_id, nombre, resultado_para_guardar, usar_credito, estado_pjn)
+            nom_guardar = (resultado_para_guardar.get("nombre") or nombre or "").strip().upper()
+            if not nom_guardar and cuil:
+                nom_guardar = f"CUIL {re.sub(r'\D', '', cuil)}"
+            consulta_id = guardar_consulta(
+                usuario_id, nom_guardar, resultado_para_guardar, usar_credito, estado_pjn
+            )
             if estado_pjn == "captcha_required" and consulta_id:
-                enviar_alerta_wa_interno(nombre.upper(), usuario_email, consulta_id)
+                enviar_alerta_wa_interno(nom_guardar, usuario_email, consulta_id)
                 yield f"data: {json.dumps({'tipo':'pjn_pendiente','consulta_id':consulta_id})}\n\n"
 
         yield f"data: {json.dumps({'tipo':'fin'})}\n\n"
@@ -249,10 +390,20 @@ def buscar_stream():
 @app.route("/buscar", methods=["GET","POST"])
 def buscar():
     if request.method == "POST":
-        data=request.get_json() or {}; nombre=data.get("nombre",""); token=data.get("token","")
+        data=request.get_json() or {}
+        nombre=data.get("nombre","")
+        cuil=(data.get("cuil") or "").strip() or None
+        caratula=(data.get("caratula") or "apellido").strip().lower()
+        token=data.get("token","")
     else:
-        nombre=request.args.get("nombre",""); token=request.args.get("token","")
-    if not nombre or len(nombre.strip()) < 2: return jsonify({"error":"Nombre invalido"}),400
+        nombre=request.args.get("nombre","")
+        cuil=request.args.get("cuil","").strip() or None
+        caratula=request.args.get("caratula","apellido").strip().lower()
+        token=request.args.get("token","")
+    if cuil:
+        dig=re.sub(r"\D","",cuil)
+        if len(dig)!=11: return jsonify({"error":"CUIL/CUIT invalido"}),400
+    elif not nombre or len(nombre.strip()) < 2: return jsonify({"error":"Nombre invalido"}),400
     usuario_id=None; usar_credito=False; usuario_email=""
     if token and supabase:
         try:
@@ -264,8 +415,8 @@ def buscar():
                 else: usar_credito=True
         except: pass
     try:
-        script=os.path.join(os.path.dirname(os.path.abspath(__file__)),"buscar_simple.py")
-        result=subprocess.run([sys.executable,script]+nombre.upper().split(),
+        argv=_argv_buscar_simple(nombre,cuil=cuil,caratula=caratula)
+        result=subprocess.run(argv,
                               capture_output=True,text=True,timeout=300,
                               cwd=os.path.dirname(os.path.abspath(__file__)))
         json_path=os.path.join(os.path.dirname(os.path.abspath(__file__)),"resultado.json")
@@ -275,16 +426,19 @@ def buscar():
     except subprocess.TimeoutExpired: return jsonify({"error":"Timeout"}),500
     except Exception as e: return jsonify({"error":str(e)}),500
     estado_pjn=resultado.get("estado_pjn","ok")
-    consulta_id=guardar_consulta(usuario_id,nombre,resultado,usar_credito,estado_pjn)
+    nom_guardar=(resultado.get("nombre") or nombre or "").strip().upper()
+    if not nom_guardar and cuil:
+        nom_guardar=f"CUIL {re.sub(r'\D','',cuil)}"
+    consulta_id=guardar_consulta(usuario_id,nom_guardar,resultado,usar_credito,estado_pjn)
     if estado_pjn=="captcha_required" and consulta_id:
-        enviar_alerta_wa_interno(nombre.upper(),usuario_email,consulta_id)
+        enviar_alerta_wa_interno(nom_guardar,usuario_email,consulta_id)
     return jsonify(resultado)
 
 @app.route("/resolver-pjn", methods=["POST"])
 def resolver_pjn():
     """Operador carga resultados manuales del PJN"""
     data = request.get_json() or {}
-    if ADMIN_TOKEN and data.get("token_admin") != ADMIN_TOKEN:
+    if not ADMIN_TOKEN or data.get("token_admin") != ADMIN_TOKEN:
         return jsonify({"error":"No autorizado"}),403
     consulta_id = data.get("consulta_id")
     causas_pjn  = data.get("causas_pjn", [])
@@ -345,36 +499,102 @@ def crear_pago():
         msg=err_body.get("message") or err_body.get("error") or err_body.get("cause") or str(result)
         print(f"[MP] preferencia rechazada status={status} body={err_body}", flush=True)
         return jsonify({"error":f"MercadoPago: {msg}"}),502
-    checkout_url=pref.get("sandbox_init_point") or pref.get("init_point")
+    # Producción: init_point (checkout real). Sandbox: suele venir sandbox_init_point.
+    checkout_url = pref.get("init_point") or pref.get("sandbox_init_point")
     if not checkout_url:
         print(f"[MP] preferencia sin URL de checkout: keys={list(pref.keys())}", flush=True)
         return jsonify({"error":"MercadoPago no devolvio URL de pago (init_point)"}),502
     if supabase:
-        try: supabase.table("pagos").insert({"usuario_id":user.id,"mp_preference_id":pref["id"],"tipo":plan_key,"monto":plan["precio"],"creditos_agregados":plan["creditos"],"estado":"pendiente"}).execute()
-        except: pass
+        try:
+            supabase.table("pagos").insert(
+                {
+                    "usuario_id": user.id,
+                    "mp_preference_id": pref["id"],
+                    "tipo": plan_key,
+                    "monto": plan["precio"],
+                    "creditos_agregados": plan["creditos"],
+                    "estado": "pendiente",
+                }
+            ).execute()
+        except Exception as e:
+            print(f"[MP] insert pagos pendiente: {e}", flush=True)
     return jsonify({"preference_id":pref["id"],"init_point":checkout_url,"sandbox_init_point":pref.get("sandbox_init_point"),"init_point_prod":pref.get("init_point")})
 
 @app.route("/webhook/mp", methods=["POST"])
 def webhook_mp():
-    data=request.get_json() or {}
-    topic=data.get("type") or request.args.get("topic","")
-    payment_id=data.get("data",{}).get("id") or request.args.get("id")
-    if topic!="payment" or not payment_id or not mp_sdk: return jsonify({"ok":True})
-    payment=mp_sdk.payment().get(payment_id); pay_data=payment["response"]
-    estado=pay_data.get("status"); ref=pay_data.get("external_reference","")
-    if not ref or "|" not in ref: return jsonify({"ok":True})
-    usuario_id,plan_key=ref.split("|",1); plan=PLANES.get(plan_key,{})
-    if not plan or not supabase: return jsonify({"ok":True})
-    if estado=="approved":
-        perfil=get_perfil(usuario_id)
-        if not perfil: return jsonify({"ok":True})
-        from datetime import datetime,timedelta
-        es_sus=plan_key in ["basico","profesional"]
-        upd={"creditos_usados":0}
-        if es_sus: upd.update({"plan":plan_key,"suscripcion_activa":True,"suscripcion_vence":(datetime.utcnow()+timedelta(days=30)).isoformat(),"creditos":plan["creditos"]})
-        else: upd["creditos"]=perfil.get("creditos",0)+plan["creditos"]
-        supabase.table("perfiles").update(upd).eq("id",usuario_id).execute()
-    return jsonify({"ok":True})
+    data = request.get_json(silent=True) or {}
+    if not _mp_evento_es_pago(data):
+        return jsonify({"ok": True})
+    payment_id = _mp_extraer_payment_id(data)
+    if not payment_id or not mp_sdk:
+        return jsonify({"ok": True})
+    if not _mp_verificar_firma_webhook(payment_id):
+        print("[MP] webhook rechazado: firma invalida o ausente", flush=True)
+        return jsonify({"error": "invalid signature"}), 403
+    try:
+        payment = mp_sdk.payment().get(payment_id)
+    except Exception as e:
+        print(f"[MP] payment().get fallo: {e}", flush=True)
+        return jsonify({"error": "retry"}), 500
+    if payment.get("status") not in (200, 201):
+        return jsonify({"ok": True})
+    pay_data = payment.get("response") or {}
+    estado = pay_data.get("status")
+    ref = pay_data.get("external_reference", "")
+    if not ref or "|" not in ref:
+        return jsonify({"ok": True})
+    usuario_id, plan_key = ref.split("|", 1)
+    plan = PLANES.get(plan_key, {})
+    if not plan or not supabase:
+        return jsonify({"ok": True})
+    if estado != "approved":
+        return jsonify({"ok": True})
+    esperado = float(plan["precio"])
+    monto = pay_data.get("transaction_amount")
+    try:
+        monto_f = float(monto) if monto is not None else None
+    except (TypeError, ValueError):
+        monto_f = None
+    if monto_f is None or abs(monto_f - esperado) > 0.02:
+        print(f"[MP] monto no coincide plan={plan_key} esperado={esperado} recibido={monto!r}", flush=True)
+        return jsonify({"ok": True})
+    if (pay_data.get("currency_id") or "").upper() != "ARS":
+        print(f"[MP] moneda inesperada: {pay_data.get('currency_id')!r}", flush=True)
+        return jsonify({"ok": True})
+    perfil = get_perfil(usuario_id)
+    if not perfil:
+        return jsonify({"ok": True})
+    preference_id = _mp_extraer_preference_id(pay_data)
+    claim = _mp_claim_pago_idempotente(usuario_id, plan_key, plan, preference_id, payment_id, esperado)
+    if claim == "duplicate":
+        return jsonify({"ok": True})
+    if claim == "error":
+        return jsonify({"error": "retry"}), 500
+    from datetime import datetime, timedelta
+
+    es_sus = plan_key in ("basico", "profesional")
+    upd = {"creditos_usados": 0}
+    if es_sus:
+        upd.update(
+            {
+                "plan": plan_key,
+                "suscripcion_activa": True,
+                "suscripcion_vence": (datetime.utcnow() + timedelta(days=30)).isoformat(),
+                "creditos": plan["creditos"],
+            }
+        )
+    else:
+        upd["creditos"] = perfil.get("creditos", 0) + plan["creditos"]
+    try:
+        supabase.table("perfiles").update(upd).eq("id", usuario_id).execute()
+    except Exception as e:
+        print(f"[MP] update perfil tras pago: {e}", flush=True)
+        try:
+            supabase.table("pagos").delete().eq("mp_payment_id", str(payment_id)).execute()
+        except Exception as e2:
+            print(f"[MP] rollback claim pagos: {e2}", flush=True)
+        return jsonify({"error": "retry"}), 500
+    return jsonify({"ok": True})
 
 @app.route("/login", methods=["POST"])
 def login_proxy():
@@ -412,10 +632,13 @@ def login_proxy():
 def debug_scraper():
     import subprocess, sys, os
     nombre = request.args.get("nombre", "MOSTEYRO")
+    cuil = request.args.get("cuil", "").strip() or None
+    caratula = request.args.get("caratula", "apellido")
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
     try:
+        argv = _argv_buscar_simple(nombre, cuil=cuil, caratula=caratula)
         result = subprocess.run(
-            [sys.executable, script, nombre.upper()],
+            argv,
             capture_output=True, text=True, timeout=30,
             cwd=os.path.dirname(os.path.abspath(__file__))
         )
@@ -424,6 +647,7 @@ def debug_scraper():
             "stderr": result.stderr[-1000:],
             "returncode": result.returncode,
             "nombre": nombre.upper(),
+            "argv": argv,
         })
     except Exception as e:
         return jsonify({"error": str(e)})

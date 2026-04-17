@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """CONTRATA SEGURO - v3.5 - SCBA MEV: login usuario/clave + selección DtoJudElegido en POSLoguin"""
+import argparse
 import requests, os, unicodedata
 from bs4 import BeautifulSoup
 import json, time, sys, re, logging
 from urllib.parse import urljoin
+
+from cuitonline_lookup import lookup_cuitonline
 
 
 class _StdoutLogHandler(logging.Handler):
@@ -66,11 +69,76 @@ SCBA_USUARIO = (os.environ.get("SCBA_USUARIO") or "").strip()
 SCBA_PASSWORD = (os.environ.get("SCBA_PASSWORD") or "").strip()
 SCBA_DEPTO_REGISTRO = (os.environ.get("SCBA_DEPTO_REGISTRO") or "").strip()
 
-NOMBRE = sys.argv[1] if len(sys.argv) > 1 else "MOSTEYRO"
-if len(sys.argv) > 2:
-    log.warning(
-        "Se ignoró el argumento extra (antes DNI/CUIL): la búsqueda es solo por nombre."
+
+def _parse_args():
+    p = argparse.ArgumentParser(
+        description="Búsqueda SCBA + PJN por nombre o por CUIL (resolución vía CuitOnline)."
     )
+    p.add_argument(
+        "--cuil",
+        metavar="DIGITOS",
+        help="CUIT/CUIL de 11 dígitos: se obtiene la denominación en cuitonline.com y se busca con ese nombre.",
+    )
+    p.add_argument(
+        "--caratula",
+        choices=("apellido", "completo"),
+        default="apellido",
+        help="Texto enviado al campo carátula del MEV SCBA: solo primer apellido/palabra o nombre completo.",
+    )
+    p.add_argument(
+        "nombre_tokens",
+        nargs="*",
+        help="Nombre y apellido (obligatorio si no se pasa --cuil). Ej.: GARCIA JUAN CARLOS",
+    )
+    return p.parse_args()
+
+
+ARGS = _parse_args()
+CUITONLINE_META = {}
+
+if ARGS.cuil:
+    log.info("Modo CUIL: resolviendo denominación en CuitOnline para %r", ARGS.cuil)
+    _co = lookup_cuitonline(ARGS.cuil)
+    if not _co.ok:
+        msg = _co.error or "No se pudo resolver el CUIL/CUIT"
+        log.error("CuitOnline: %s", msg)
+        print(msg, file=sys.stderr)
+        out = {
+            "nombre": "",
+            "dni_buscado": None,
+            "total": 0,
+            "causas_scba": 0,
+            "causas_pjn": 0,
+            "estado_pjn": "error",
+            "causas": [],
+            "error_config": msg,
+            "modo_entrada": "cuil",
+            "cuil_consultado": _co.digits,
+            "cuitonline_error": msg,
+        }
+        print(f"RESULTADO:{json.dumps(out, ensure_ascii=False)}", flush=True)
+        sys.exit(1)
+    NOMBRE = _co.nombre.upper()
+    CUITONLINE_META = {
+        "modo_entrada": "cuil",
+        "cuil_consultado": _co.digits,
+        "nombre_resuelto_cuitonline": _co.nombre,
+        "cuitonline_selector": _co.selector_origen,
+        "cuitonline_url": _co.url,
+    }
+    log.info(
+        "CuitOnline OK: nombre=%r origen_dom=%s",
+        _co.nombre,
+        _co.selector_origen,
+    )
+else:
+    raw = " ".join(ARGS.nombre_tokens).strip()
+    if not raw:
+        NOMBRE = "MOSTEYRO"
+        log.warning("Sin nombre ni --cuil: usando valor por defecto %r", NOMBRE)
+    else:
+        NOMBRE = raw.upper()
+    CUITONLINE_META = {"modo_entrada": "nombre"}
 
 
 def _abort_sin_credenciales_scba():
@@ -86,6 +154,8 @@ def _abort_sin_credenciales_scba():
         "estado_pjn": "error",
         "causas": [],
         "error_config": msg,
+        "caratula_modo": ARGS.caratula,
+        **CUITONLINE_META,
     }
     print(f"RESULTADO:{json.dumps(out, ensure_ascii=False)}", flush=True)
     sys.exit(1)
@@ -96,6 +166,7 @@ def normalizar(texto):
 PARTES = [normalizar(p) for p in NOMBRE.upper().split()]
 APELLIDO = PARTES[0]
 FILTRAR_POR = PARTES
+CARATULA_BUSQUEDA = " ".join(PARTES) if ARGS.caratula == "completo" else APELLIDO
 
 # GAM = codigo del juzgado en el sistema SCBA
 SCBA_JURISDICCIONES = [
@@ -339,7 +410,12 @@ def hacer_busqueda(s, gam):
     POST correcto al formulario real de SCBA MEV.
     Campos verificados inspeccionando el formulario HTML de mev.scba.gov.ar/Busqueda.asp
     """
-    log.debug("SCBA busqueda POST JuzgadoElegido=%r caratula=%r", gam.strip(), APELLIDO)
+    log.debug(
+        "SCBA busqueda POST JuzgadoElegido=%r caratula=%r (modo_caratula=%s)",
+        gam.strip(),
+        CARATULA_BUSQUEDA,
+        ARGS.caratula,
+    )
     return s.post(
         f"{BASE}/Busqueda.asp",
         data={
@@ -347,7 +423,7 @@ def hacer_busqueda(s, gam):
             "busca": "",
             "JuzgadoElegido": gam.strip(),   # campo correcto (no pidJuzgado)
             "radio": "xCa",                   # buscar por caratula
-            "caratula": APELLIDO,             # campo correcto (no Caratula)
+            "caratula": CARATULA_BUSQUEDA,    # apellido solo o nombre completo
             "TipoCausa": "Ac",               # Ac = todas las causas activas (no Am)
             "Buscar": "Buscar",
         },
@@ -610,7 +686,14 @@ def buscar_pjn():
 if not SCBA_USUARIO or not SCBA_PASSWORD:
     _abort_sin_credenciales_scba()
 
-log.info("Inicio busqueda solo por nombre=%r filtro_partes=%s", NOMBRE, FILTRAR_POR)
+log.info(
+    "Inicio busqueda nombre=%r filtro_partes=%s caratula_SCBA=%r modo_caratula=%s meta=%s",
+    NOMBRE,
+    FILTRAR_POR,
+    CARATULA_BUSQUEDA,
+    ARGS.caratula,
+    CUITONLINE_META,
+)
 scba = buscar_scba()
 log.info("Tras SCBA: %s causa(s); inicio PJN", len(scba))
 progreso(88, "PJN -- Capital Federal", "Camara Nacional del Trabajo", len(scba))
@@ -619,7 +702,16 @@ log.info("Tras PJN: %s causa(s) estado_pjn=%s", len(pjn), estado_pjn)
 todas = scba + pjn
 progreso(100, "Busqueda completada", f"{len(todas)} causa(s) encontrada(s)", len(todas))
 log.info("Busqueda terminada total=%s (scba=%s pjn=%s)", len(todas), len(scba), len(pjn))
-print(
-    f"RESULTADO:{json.dumps({'nombre':NOMBRE,'dni_buscado':None,'total':len(todas),'causas_scba':len(scba),'causas_pjn':len(pjn),'estado_pjn':estado_pjn,'causas':todas},ensure_ascii=False)}",
-    flush=True,
-)
+_resultado = {
+    "nombre": NOMBRE,
+    "dni_buscado": None,
+    "total": len(todas),
+    "causas_scba": len(scba),
+    "causas_pjn": len(pjn),
+    "estado_pjn": estado_pjn,
+    "causas": todas,
+    "caratula_modo": ARGS.caratula,
+    "caratula_scba_usada": CARATULA_BUSQUEDA,
+    **CUITONLINE_META,
+}
+print(f"RESULTADO:{json.dumps(_resultado, ensure_ascii=False)}", flush=True)

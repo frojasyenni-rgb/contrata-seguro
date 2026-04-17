@@ -124,6 +124,48 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 .plan-feature{font-size:12px;color:var(--gris-500);margin-bottom:6px;text-align:left;}
 .plan-feature::before{content:"✓ ";color:var(--verde);font-weight:700;}
 
+/* PLANES — layout institucional (referencia Stitch, tokens Contrata Seguro) */
+.planes-inst-shell{max-width:1100px;margin:0 auto;padding:0 2px;}
+.planes-inst-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:28px;align-items:end;margin-bottom:26px;}
+@media(max-width:900px){.planes-inst-hero{grid-template-columns:1fr;}}
+.planes-inst-h2{font-family:'Fraunces',serif;font-size:clamp(2rem,4.8vw,3.15rem);font-weight:700;color:var(--azul);line-height:1.05;margin:0;letter-spacing:-0.02em;}
+.planes-inst-h2 em{font-style:italic;font-weight:600;color:#2a4a7a;}
+.planes-inst-lead{font-size:14px;color:var(--gris-500);margin:10px 0 0;line-height:1.55;max-width:40ch;}
+#plan-actual-banner .plan-status-banner{margin-bottom:22px;}
+.plan-status-banner{position:relative;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px;background:var(--gris-100);border:1px solid var(--gris-200);border-radius:14px;overflow:hidden;margin-bottom:22px;}
+.plan-status-banner__accent{position:absolute;top:0;right:0;width:130px;height:130px;background:linear-gradient(135deg,var(--azul) 0%,#2f486a 100%);opacity:0.08;border-radius:0 0 0 100%;}
+.plan-status-banner__body{position:relative;z-index:1;min-width:min(100%,220px);}
+.plan-status-banner__eyebrow{display:block;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gris-500);margin-bottom:6px;}
+.plan-status-banner__title{font-family:'Fraunces',serif;font-size:1.32rem;font-weight:700;color:var(--azul);margin:0 0 6px;}
+.plan-status-banner__sub{font-size:13px;color:var(--gris-500);margin:0;max-width:34rem;line-height:1.45;}
+.plan-status-banner__actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:relative;z-index:1;}
+.planes-inst-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:stretch;}
+@media(max-width:640px){.planes-inst-grid{grid-template-columns:1fr;}}
+.plan-card-inst{background:var(--blanco);border:1px solid var(--gris-200);border-radius:14px;padding:26px 22px;display:flex;flex-direction:column;text-align:left;position:relative;transition:box-shadow .25s,border-color .2s,transform .2s;box-shadow:0 2px 10px rgba(0,0,0,.04);}
+.plan-card-inst:hover{border-color:rgba(26,79,160,.32);box-shadow:0 8px 28px rgba(26,79,160,.1);}
+.plan-card-inst.featured{border:2px solid var(--oro);z-index:2;box-shadow:0 12px 36px rgba(26,79,160,.12);transform:scale(1.02);}
+@media(max-width:640px){.plan-card-inst.featured{transform:none;}}
+.plan-card-inst__badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--oro) 0%,#b8831f 100%);color:#2a2100;font-size:9px;font-weight:800;letter-spacing:.14em;padding:4px 14px;border-radius:999px;text-transform:uppercase;white-space:nowrap;}
+.plan-inst-head{margin-bottom:16px;}
+.plan-card-inst.featured .plan-inst-head{border-left:3px solid var(--oro);padding-left:14px;}
+.plan-inst-title{font-family:'Fraunces',serif;font-size:1.32rem;font-weight:700;color:var(--gris-900);margin:0;}
+.plan-inst-price{font-family:'Fraunces',serif;font-size:1.85rem;font-weight:700;color:var(--azul);margin:6px 0 4px;}
+.plan-inst-price span{font-size:14px;font-weight:500;color:var(--gris-500);margin-left:6px;}
+.plan-inst-tagline{font-size:13px;color:var(--gris-500);margin:0 0 4px;}
+.plan-inst-list{list-style:none;padding:0;margin:0 0 18px;flex:1;}
+.plan-inst-list li{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--gris-500);line-height:1.45;margin-bottom:11px;}
+.plan-inst-list li:last-child{margin-bottom:0;}
+.plan-card-inst.featured .plan-inst-list li{color:var(--gris-900);font-weight:500;}
+.plan-inst-ico{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--azul-c);color:var(--azul);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;margin-top:1px;}
+.plan-card-inst.featured .plan-inst-ico{background:var(--oro-c);color:#5c4a00;}
+.plan-card-inst .btn{width:100%;margin-top:auto;padding:12px 16px;}
+.btn-inst-outline{background:transparent;border:1px solid var(--gris-200);color:var(--azul);}
+.btn-inst-outline:hover{background:var(--azul);color:#fff;border-color:var(--azul);}
+.btn-inst-gradient{background:linear-gradient(135deg,var(--azul) 0%,#143d7a 100%);border:none;color:#fff;}
+.btn-inst-gradient:hover{filter:brightness(1.06);}
+.planes-inst-foot{margin-top:32px;padding-top:18px;border-top:1px solid var(--gris-200);display:flex;flex-wrap:wrap;align-items:center;gap:16px;}
+.planes-inst-foot em{font-family:'Fraunces',serif;font-style:italic;font-size:14px;color:var(--azul);}
+
 /* TABS */
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--gris-200);margin-bottom:20px;}
 .tab{padding:10px 18px;font-size:14px;cursor:pointer;border:none;background:none;color:var(--gris-500);font-family:'DM Sans',sans-serif;font-weight:500;border-bottom:2px solid transparent;transition:all 0.15s;}
@@ -216,10 +258,22 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 
     <!-- BÚSQUEDA -->
     <div class="card">
-      <div class="search-row">
-        <div class="field" style="flex:1;min-width:200px">
+      <div class="search-row" style="flex-wrap:wrap;gap:12px;align-items:flex-end">
+        <div class="field" style="flex:1;min-width:220px">
+          <label>Modo</label>
+          <select id="inp-modo-busqueda" style="width:100%;padding:10px 12px;border:1px solid var(--gris-200);border-radius:8px;font-size:14px" onchange="toggleBusquedaModo()">
+            <option value="nombre_apellido">Por apellido (primera palabra en carátula SCBA)</option>
+            <option value="nombre_completo">Por nombre completo (carátula con todo el texto)</option>
+            <option value="cuil">Por CUIL/CUIT (obtiene nombre en CuitOnline y busca)</option>
+          </select>
+        </div>
+        <div class="field" id="row-nombre" style="flex:1;min-width:220px">
           <label>Apellido y nombre</label>
           <input type="text" id="inp-nombre" placeholder="Ej: GARCIA JUAN CARLOS" autocomplete="off" onkeydown="if(event.key==='Enter')iniciarBusqueda()">
+        </div>
+        <div class="field" id="row-cuil" style="display:none;flex:1;min-width:220px">
+          <label>CUIL/CUIT</label>
+          <input type="text" id="inp-cuil" placeholder="11 dígitos, ej: 20394945472" autocomplete="off" onkeydown="if(event.key==='Enter')iniciarBusqueda()">
         </div>
         <button class="btn btn-primary btn-sm" id="btn-buscar" onclick="iniciarBusqueda()" style="align-self:flex-end;margin-bottom:0;width:auto;padding:11px 22px">Buscar →</button>
       </div>
@@ -255,41 +309,69 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <div class="disclaimer" id="disclaimer"></div>
     </div>
 
-    <!-- PLANES PROMO (cuando no está logueado) -->
-    <div id="planes-promo" style="margin-top:32px">
-      <div style="text-align:center;margin-bottom:20px">
-        <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--gris-900)">Planes y precios</div>
-        <div style="font-size:14px;color:var(--gris-500);margin-top:6px">Consultá antecedentes laborales antes de contratar.</div>
-      </div>
-      <div class="planes-grid" id="planes-home">
-        <div class="plan-card">
-          <div class="plan-nombre">Básico</div>
-          <div class="plan-precio">$15.000<span>/mes</span></div>
-          <div class="plan-consultas">20 consultas por mes</div>
-          <div class="plan-feature">SCBA + PJN incluido</div>
-          <div class="plan-feature">Historial de consultas</div>
-          <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar créditos</button>
+    <!-- PLANES PROMO (cuando no está logueado) — UI institucional -->
+    <div id="planes-promo" style="margin-top:36px">
+      <div class="planes-inst-shell">
+        <div class="planes-inst-hero">
+          <div>
+            <h2 class="planes-inst-h2">Nuestros <em>planes</em></h2>
+            <p class="planes-inst-lead">Consultá antecedentes laborales en SCBA y PJN antes de contratar. Elegí el volumen que mejor se adapte a tu estudio o empresa.</p>
+          </div>
+          <div class="plan-status-banner" aria-hidden="true">
+            <div class="plan-status-banner__accent"></div>
+            <div class="plan-status-banner__body">
+              <span class="plan-status-banner__eyebrow">Resumen</span>
+              <h3 class="plan-status-banner__title">Planes flexibles</h3>
+              <p class="plan-status-banner__sub">Creá cuenta gratis y sumá créditos cuando lo necesites, o activá un plan mensual con más consultas.</p>
+            </div>
+          </div>
         </div>
-        <div class="plan-card featured">
-          <div class="plan-featured-badge">MÁS POPULAR</div>
-          <div class="plan-nombre">Profesional</div>
-          <div class="plan-precio">$45.000<span>/mes</span></div>
-          <div class="plan-consultas">Consultas ilimitadas</div>
-          <div class="plan-feature">SCBA + PJN incluido</div>
-          <div class="plan-feature">Historial completo</div>
-          <div class="plan-feature">Descarga en PDF</div>
-          <div class="plan-feature">Prioridad en soporte</div>
-          <button class="btn btn-primary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('profesional')">Comprar créditos</button>
+        <div class="planes-inst-grid" id="planes-home">
+          <div class="plan-card-inst">
+            <div class="plan-inst-head">
+              <h3 class="plan-inst-title">Básico</h3>
+              <div class="plan-inst-price">$15.000<span>/mes</span></div>
+              <p class="plan-inst-tagline">20 consultas por mes</p>
+            </div>
+            <ul class="plan-inst-list">
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>SCBA y PJN en cada consulta</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Historial y seguimiento de búsquedas</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Exportación a PDF</span></li>
+            </ul>
+            <button type="button" class="btn btn-inst-outline" onclick="pagar('basico')">Adquirir plan</button>
+          </div>
+          <div class="plan-card-inst featured">
+            <div class="plan-card-inst__badge">Más popular</div>
+            <div class="plan-inst-head">
+              <h3 class="plan-inst-title">Profesional</h3>
+              <div class="plan-inst-price">$45.000<span>/mes</span></div>
+              <p class="plan-inst-tagline">Consultas ilimitadas</p>
+            </div>
+            <ul class="plan-inst-list">
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>SCBA y PJN sin tope mensual</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Historial completo y reportes</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>PDF y flujo priorizado</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Soporte preferencial</span></li>
+            </ul>
+            <button type="button" class="btn btn-inst-gradient" onclick="pagar('profesional')">Activar cuenta</button>
+          </div>
+          <div class="plan-card-inst">
+            <div class="plan-inst-head">
+              <h3 class="plan-inst-title">Por consulta</h3>
+              <div class="plan-inst-price">$2.500<span>/c/u</span></div>
+              <p class="plan-inst-tagline">Sin suscripción mensual</p>
+            </div>
+            <ul class="plan-inst-list">
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Pago único por consulta</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Mismo alcance SCBA + PJN</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>PDF incluido</span></li>
+            </ul>
+            <button type="button" class="btn btn-inst-outline" onclick="pagar('credito_5')">Adquirir plan</button>
+          </div>
         </div>
-        <div class="plan-card">
-          <div class="plan-nombre">Por consulta</div>
-          <div class="plan-precio">$2.500<span>/c/u</span></div>
-          <div class="plan-consultas">Sin suscripción mensual</div>
-          <div class="plan-feature">SCBA + PJN incluido</div>
-          <div class="plan-feature">Historial de consultas</div>
-          <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('credito_5')">Comprar créditos</button>
+        <div class="planes-inst-foot">
+          <em>Datos obtenidos de fuentes públicas.</em>
+          <span style="font-size:13px;color:var(--gris-500)">Los precios pueden actualizarse; el valor final se confirma al pagar con Mercado Pago.</span>
         </div>
       </div>
     </div>
@@ -324,36 +406,56 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 
     <!-- TAB PLANES -->
     <div id="tab-planes" style="display:none">
-      <div id="plan-actual-banner" style="margin-bottom:20px"></div>
-      <div class="planes-grid" id="planes-pago">
-        <div class="plan-card">
-          <div class="plan-nombre">Básico</div>
-          <div class="plan-precio">$15.000<span>/mes</span></div>
-          <div class="plan-consultas">20 consultas por mes</div>
-          <div class="plan-feature">SCBA + PJN incluido</div>
-          <div class="plan-feature">Historial de consultas</div>
-          <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('basico')">Comprar créditos</button>
+      <div class="planes-inst-shell" style="margin-top:4px">
+        <div class="planes-inst-hero" style="margin-bottom:16px">
+          <div>
+            <h2 class="planes-inst-h2">Nuestros <em>planes</em></h2>
+            <p class="planes-inst-lead">Gestioná tu suscripción o sumá consultas puntuales. Los cambios se aplican tras el pago aprobado.</p>
+          </div>
         </div>
-        <div class="plan-card featured">
-          <div class="plan-featured-badge">MÁS POPULAR</div>
-          <div class="plan-nombre">Profesional</div>
-          <div class="plan-precio">$45.000<span>/mes</span></div>
-          <div class="plan-consultas">Consultas ilimitadas</div>
-          <div class="plan-feature">SCBA + PJN incluido</div>
-          <div class="plan-feature">Historial completo</div>
-          <div class="plan-feature">Descarga en PDF</div>
-          <div class="plan-feature">Prioridad en soporte</div>
-          <button class="btn btn-primary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('profesional')">Comprar créditos</button>
-        </div>
-        <div class="plan-card">
-          <div class="plan-nombre">Por consulta</div>
-          <div class="plan-precio">$2.500<span>/c/u</span></div>
-          <div class="plan-consultas">Sin suscripción mensual</div>
-          <div class="plan-feature">SCBA + PJN incluido</div>
-          <div class="plan-feature">Historial de consultas</div>
-          <div class="plan-feature">Descarga en PDF</div>
-          <button class="btn btn-secondary" style="margin-top:auto;padding-top:16px;width:100%;display:block" onclick="pagar('credito_5')">Comprar créditos</button>
+        <div id="plan-actual-banner"></div>
+        <div class="planes-inst-grid" id="planes-pago">
+          <div class="plan-card-inst">
+            <div class="plan-inst-head">
+              <h3 class="plan-inst-title">Básico</h3>
+              <div class="plan-inst-price">$15.000<span>/mes</span></div>
+              <p class="plan-inst-tagline">20 consultas por mes</p>
+            </div>
+            <ul class="plan-inst-list">
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>SCBA y PJN en cada consulta</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Historial y seguimiento de búsquedas</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Exportación a PDF</span></li>
+            </ul>
+            <button type="button" class="btn btn-inst-outline" onclick="pagar('basico')">Adquirir plan</button>
+          </div>
+          <div class="plan-card-inst featured">
+            <div class="plan-card-inst__badge">Más popular</div>
+            <div class="plan-inst-head">
+              <h3 class="plan-inst-title">Profesional</h3>
+              <div class="plan-inst-price">$45.000<span>/mes</span></div>
+              <p class="plan-inst-tagline">Consultas ilimitadas</p>
+            </div>
+            <ul class="plan-inst-list">
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>SCBA y PJN sin tope mensual</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Historial completo y reportes</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>PDF y flujo priorizado</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Soporte preferencial</span></li>
+            </ul>
+            <button type="button" class="btn btn-inst-gradient" onclick="pagar('profesional')">Activar cuenta</button>
+          </div>
+          <div class="plan-card-inst">
+            <div class="plan-inst-head">
+              <h3 class="plan-inst-title">Por consulta</h3>
+              <div class="plan-inst-price">$2.500<span>/c/u</span></div>
+              <p class="plan-inst-tagline">Sin suscripción mensual</p>
+            </div>
+            <ul class="plan-inst-list">
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Pago único por consulta</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>Mismo alcance SCBA + PJN</span></li>
+              <li><span class="plan-inst-ico" aria-hidden="true">✓</span><span>PDF incluido</span></li>
+            </ul>
+            <button type="button" class="btn btn-inst-outline" onclick="pagar('credito_5')">Adquirir plan</button>
+          </div>
         </div>
       </div>
     </div>
@@ -458,12 +560,24 @@ function actualizarPlanBanner() {
   var cr = perfil.creditos || 0;
   var vence = perfil.suscripcion_vence ? new Date(perfil.suscripcion_vence).toLocaleDateString('es-AR') : '';
   var q = String.fromCharCode(39);
-  var label = plan === 'profesional' ? 'Plan Profesional — Consultas ilimitadas' : plan === 'basico' ? 'Plan Básico — ' + cr + ' consultas' : 'Plan Gratis — ' + cr + ' consultas';
+  var title = plan === 'profesional' ? 'Plan Profesional — consultas ilimitadas' : plan === 'basico' ? 'Plan Básico — ' + cr + ' consultas disponibles' : 'Plan Gratis — ' + cr + ' consultas disponibles';
+  var sub = plan === 'profesional'
+    ? 'Tenés acceso ilimitado a consultas SCBA y PJN mientras la suscripción esté activa.'
+    : 'Mejorá tu plan para sumar consultas mensuales o comprá consultas puntuales cuando lo necesites.';
   var btns = '';
-  if (plan !== 'profesional') btns += '<button class="btn btn-primary btn-sm" onclick="pagar(' + q + 'profesional' + q + ')">Mejorar a Profesional</button> ';
-  if (plan === 'gratis') btns += '<button class="btn btn-secondary btn-sm" onclick="pagar(' + q + 'basico' + q + ')">Plan Básico</button> ';
-  btns += '<button class="btn btn-secondary btn-sm" onclick="pagar(' + q + 'credito_5' + q + ')">+ Consulta ($2.500)</button>';
-  b.innerHTML = '<div style="background:#f0f4ff;border:1px solid #c7d7fc;border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px"><div><b style="color:#1a4ffa">' + label + '</b>' + (vence ? '<br><small style="color:#555">Vence ' + vence + '</small>' : '') + '</div><div style="display:flex;gap:8px;flex-wrap:wrap">' + btns + '</div></div>';
+  if (plan !== 'profesional') btns += '<button type="button" class="btn btn-inst-gradient btn-sm" onclick="pagar(' + q + 'profesional' + q + ')">Mejorar a Profesional</button> ';
+  if (plan === 'gratis') btns += '<button type="button" class="btn btn-inst-outline btn-sm" onclick="pagar(' + q + 'basico' + q + ')">Plan Básico</button> ';
+  btns += '<button type="button" class="btn btn-inst-outline btn-sm" onclick="pagar(' + q + 'credito_5' + q + ')">+ Consulta ($2.500)</button>';
+  b.innerHTML =
+    '<div class="plan-status-banner" role="region" aria-label="Estado de suscripción">' +
+    '<div class="plan-status-banner__accent"></div>' +
+    '<div class="plan-status-banner__body">' +
+    '<span class="plan-status-banner__eyebrow">Estado de suscripción</span>' +
+    '<h3 class="plan-status-banner__title">' + title + '</h3>' +
+    '<p class="plan-status-banner__sub">' + sub + (vence ? ' Próximo vencimiento: ' + vence + '.' : '') + '</p>' +
+    '</div>' +
+    '<div class="plan-status-banner__actions">' + btns + '</div>' +
+    '</div>';
 }
 
 
@@ -558,6 +672,7 @@ function showPage(name, opts) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(`page-${name}`).classList.add('active');
   if (name === 'panel') cargarPanel(opts || {});
+  if (name === 'inicio' && typeof toggleBusquedaModo === 'function') toggleBusquedaModo();
   window.scrollTo(0,0);
 }
 
@@ -617,9 +732,23 @@ function unhoverPlan(card) {
   }
 }
 
+let evtSource = null; // global para poder cancelar entre búsquedas
 
-  let evtSource = null; // global para poder cancelar entre búsquedas
-  async function iniciarBusqueda() {
+function toggleBusquedaModo() {
+  const modo = document.getElementById('inp-modo-busqueda').value;
+  const rowNombre = document.getElementById('row-nombre');
+  const rowCuil = document.getElementById('row-cuil');
+  if (!rowNombre || !rowCuil) return;
+  if (modo === 'cuil') {
+    rowNombre.style.display = 'none';
+    rowCuil.style.display = 'block';
+  } else {
+    rowNombre.style.display = 'block';
+    rowCuil.style.display = 'none';
+  }
+}
+
+async function iniciarBusqueda() {
   // RESET: cancelar búsqueda anterior si existe
   if (evtSource) { try { evtSource.close(); } catch(e) {} evtSource = null; }
   // RESET UI al estado inicial
@@ -630,8 +759,25 @@ function unhoverPlan(card) {
   const estadoEl = document.getElementById('estado-texto') || document.getElementById('estadoTexto') || document.querySelector('[data-estado]');
   if (estadoEl) estadoEl.textContent = 'Iniciando...';
 
-  const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
-  if (!nombre) { alert('Ingres\u00e1 un nombre para buscar'); return; }
+  const modo = document.getElementById('inp-modo-busqueda').value;
+  let nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
+  let cuilParam = '';
+  let caratulaParam = 'apellido';
+  let etiquetaBusqueda = nombre;
+
+  if (modo === 'cuil') {
+    const rawCuil = document.getElementById('inp-cuil').value.replace(/\D/g, '');
+    if (rawCuil.length !== 11) {
+      alert('Ingres\u00e1 un CUIL/CUIT v\u00e1lido (11 d\u00edgitos).');
+      return;
+    }
+    cuilParam = rawCuil;
+    etiquetaBusqueda = 'CUIL ' + rawCuil;
+    nombre = '';
+  } else {
+    if (!nombre) { alert('Ingres\u00e1 un nombre para buscar'); return; }
+    caratulaParam = modo === 'nombre_completo' ? 'completo' : 'apellido';
+  }
   if (!usuario || !perfil) { showModal('login'); return; }
   const plan = perfil.plan || 'gratis';
   const creditos = perfil.creditos || 0;
@@ -645,12 +791,15 @@ function unhoverPlan(card) {
   document.getElementById('progress-card').style.display = 'block';
   document.getElementById('planes-promo').style.display = 'none';
   document.getElementById('prog-bar').style.width = '0%';
-  document.getElementById('prog-titulo').textContent = 'Buscando "' + nombre + '"...';
+  document.getElementById('prog-titulo').textContent = 'Buscando "' + etiquetaBusqueda + '"...';
   document.getElementById('prog-sub').textContent = 'Iniciando...';
   document.getElementById('prog-detalle').textContent = '';
 
   const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
-  const url = API_URL + '/buscar/stream?nombre=' + encodeURIComponent(nombre) + (token ? '&token=' + token : '');
+  let url = API_URL + '/buscar/stream?caratula=' + encodeURIComponent(caratulaParam);
+  if (cuilParam) url += '&cuil=' + encodeURIComponent(cuilParam);
+  else url += '&nombre=' + encodeURIComponent(nombre);
+  if (token) url += '&token=' + encodeURIComponent(token);
 
   try {
     evtSource = new EventSource(url);
@@ -678,7 +827,7 @@ function unhoverPlan(card) {
       const msg = JSON.parse(e.data);
       if (msg.tipo === 'progreso') {
         document.getElementById('prog-bar').style.width = msg.pct + '%';
-        document.getElementById('prog-titulo').textContent = msg.texto || ('Buscando "' + nombre + '"...');
+        document.getElementById('prog-titulo').textContent = msg.texto || ('Buscando "' + etiquetaBusqueda + '"...');
         document.getElementById('prog-sub').textContent = msg.detalle || '';
         if (msg.causas > 0) {
           document.getElementById('prog-detalle').textContent = '\u2605 ' + msg.causas + ' causa(s) encontrada(s)';
@@ -691,7 +840,7 @@ function unhoverPlan(card) {
         clearTimeout(timeout);
         evtSource.close();
         resultadoActual = msg.resultado;
-        resultadoActual._nombre = nombre;
+        resultadoActual._nombre = (msg.resultado.nombre || nombre || etiquetaBusqueda || '').trim();
         document.getElementById('prog-bar').style.width = '100%';
         document.getElementById('prog-titulo').textContent = 'Completado \u2014 ' + (msg.resultado.total || 0) + ' causa(s)';
         setTimeout(async () => {
@@ -801,18 +950,7 @@ async function cargarPanel(opts) {
     actualizarHeaderUsuario();
   }
 
-  // Banner plan actual
-  const plan = perfil?.plan || 'gratis';
-  const creditos = perfil?.creditos || 0;
-  const planNombres = {gratis:'Gratis', basico:'Básico', profesional:'Profesional'};
-  document.getElementById('plan-actual-banner').innerHTML = `
-    <div style="background:var(--azul-c);border:1px solid var(--azul-m);border-radius:10px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-      <div>
-        <div style="font-size:13px;font-weight:500;color:var(--azul)">Plan actual: <strong>${planNombres[plan]||plan}</strong></div>
-        <div style="font-size:12px;color:var(--gris-500);margin-top:2px">${plan==='profesional'?'Consultas ilimitadas':creditos+' consultas disponibles'}</div>
-      </div>
-      ${plan!=='profesional'?`<button class="btn btn-primary btn-sm" onclick="switchTab(document.querySelectorAll('#page-panel .tab')[1],'tab-planes');actualizarPlanBanner()">Mejorar plan</button>`:''}
-    </div>`;
+  actualizarPlanBanner();
 
   cargarHistorial();
 
@@ -946,8 +1084,8 @@ async function pagar(planKey) {
   const token = (await sb?.auth.getSession())?.data.session?.access_token;
   if (!token) { showModal('login'); return; }
 
-  // Deshabilitar botones mientras procesa
-  document.querySelectorAll('.plan-card button').forEach(b => b.disabled = true);
+  // Deshabilitar botones mientras procesa (tarjetas clásicas e institucionales + banner)
+  document.querySelectorAll('.plan-card button, .planes-inst-grid button, #plan-actual-banner button').forEach(b => b.disabled = true);
   try {
     const resp = await fetch(`${API_URL}/pagar`, {
       method: 'POST',
@@ -965,7 +1103,7 @@ async function pagar(planKey) {
     alert('Error de conexión: ' + e.message);
   } finally {
     // Rehabilitar botones para que pueda elegir otro plan sin recargar
-    document.querySelectorAll('.plan-card button').forEach(b => b.disabled = false);
+    document.querySelectorAll('.plan-card button, .planes-inst-grid button, #plan-actual-banner button').forEach(b => b.disabled = false);
   }
 }
 
@@ -1037,16 +1175,34 @@ function descargarPDF() {
   setTimeout(() => ventana.print(), 500);
 }
 
-// Revisar si viene de un pago aprobado
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('pago') === 'ok') {
-  setTimeout(() => {
-    if (usuario) {
+document.addEventListener('DOMContentLoaded', function () {
+  if (typeof toggleBusquedaModo === 'function') toggleBusquedaModo();
+});
+
+// Revisar si viene de un pago aprobado (refrescar perfil para ver créditos/plan al instante)
+(function manejarRetornoPagoOk() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('pago') !== 'ok' || !sb) return;
+  setTimeout(async function () {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.user) return;
+      await setUsuario(session.user);
       showPage('panel');
+      if (typeof switchTab === 'function' && typeof actualizarPlanBanner === 'function') {
+        var tabs = document.querySelectorAll('#page-panel .tab');
+        for (var i = 0; i < tabs.length; i++) {
+          if (tabs[i].textContent && tabs[i].textContent.indexOf('Planes') >= 0) {
+            switchTab(tabs[i], 'tab-planes');
+            break;
+          }
+        }
+        actualizarPlanBanner();
+      }
       alert('¡Pago aprobado! Tus créditos ya están disponibles.');
-    }
-  }, 1000);
-}
+    } catch (e) { console.warn('post-pago ok', e); }
+  }, 1200);
+})();
 
 // Manejar confirmación de email via URL hash
 (function() {
