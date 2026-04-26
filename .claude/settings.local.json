@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -)",
+      "Bash(py --version)",
+      "Bash(where python3 *)",
+      "Bash(where python *)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

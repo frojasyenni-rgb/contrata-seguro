@@ -97,6 +97,12 @@ def _parse_args():
         metavar="RUTA",
         help="JSON de cookies PJN tras resolver el desafío en el sitio (ver API /pjn/prepare y /pjn/verify).",
     )
+    p.add_argument(
+        "--skip-pjn",
+        action="store_true",
+        default=False,
+        help="Omitir búsqueda PJN (resultados ya provistos por pjn_session tras resolver captcha).",
+    )
     return p.parse_args()
 
 
@@ -651,8 +657,19 @@ def buscar_pjn():
                     log.warning("PJN: captcha en respuesta camara=%s", cod)
                     return [], "captcha_required"
                 soup2 = BeautifulSoup(r2.text, "html.parser")
-                for fila in soup2.select("table tr")[1:]:
-                    celdas = [td.get_text(strip=True) for td in fila.find_all("td")]
+                # Encontrar la tabla con más filas de datos (evita tablas de navegación)
+                result_table = None
+                max_data_rows = 0
+                for tbl in soup2.find_all("table"):
+                    data_rows = sum(
+                        1 for row in tbl.find_all("tr")
+                        if len(row.find_all("td")) >= 3 and len(row.find_all("td")[0].get_text(strip=True)) >= 5
+                    )
+                    if data_rows > max_data_rows:
+                        max_data_rows = data_rows
+                        result_table = tbl
+                for fila in (result_table.find_all("tr")[1:] if result_table else []):
+                    celdas = [td.get_text(" ", strip=True) for td in fila.find_all("td")]
                     if len(celdas) < 3 or len(celdas[0]) < 5: continue
                     cn = normalizar(celdas[0])
                     sep = cn.find(" C/ ")
@@ -693,8 +710,12 @@ log.info(
 )
 scba = buscar_scba()
 log.info("Tras SCBA: %s causa(s); inicio PJN", len(scba))
-progreso(88, "PJN -- Capital Federal", "Camara Nacional del Trabajo", len(scba))
-pjn, estado_pjn = buscar_pjn()
+if ARGS.skip_pjn:
+    pjn, estado_pjn = [], "skip"
+    log.info("PJN: omitido por --skip-pjn (resultados pre-computados en sesión)")
+else:
+    progreso(88, "PJN -- Capital Federal", "Camara Nacional del Trabajo", len(scba))
+    pjn, estado_pjn = buscar_pjn()
 log.info("Tras PJN: %s causa(s) estado_pjn=%s", len(pjn), estado_pjn)
 todas = scba + pjn
 progreso(100, "Busqueda completada", f"{len(todas)} causa(s) encontrada(s)", len(todas))

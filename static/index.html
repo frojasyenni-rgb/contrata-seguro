@@ -3,12 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- PJN: el iframe del captcha no envía Referer de tu dominio (bloquea el widget si no es pjn.gov.ar). -->
-<meta name="referrer" content="no-referrer">
-<link rel="preconnect" href="https://captcha.pjn.gov.ar" crossorigin>
-<link rel="preconnect" href="https://scw.pjn.gov.ar" crossorigin>
-<!-- Si servís el HTML en GitHub Pages y el API en otro host (p. ej. Railway), poné la URL base del backend aquí, sin barra final. -->
-<meta name="api-base" content="">
+<!-- PJN: el HTML del widget lo trae el servidor con Referer SCW; acá no usamos no-referrer en el iframe del captcha
+     porque el JS de PJN arma postMessage(parent) desde document.referrer y con referrer vacío falla. -->
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Contrata Seguro — Consulta Judicial Laboral</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
 <script src="https://sdk.mercadopago.com/js/v2"></script>
@@ -206,11 +203,6 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
   .hero h1{font-size:26px;}
   header{padding:12px 16px;}
 }
-/* PJN captcha: modal ancho cuando se muestra SCW en iframe */
-#modal-pjn-captcha.modal-pjn-wide .modal{max-width:min(96vw,920px);}
-#modal-pjn-captcha.modal-pjn-wide #pjn-captcha-host-modal{min-height:min(70vh,520px);}
-.pjn-mode-btn{font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid var(--gris-200);background:var(--gris-100);cursor:pointer;font-family:'DM Sans',sans-serif;}
-.pjn-mode-btn.active{border-color:var(--azul);background:var(--azul-c);color:var(--azul);font-weight:600;}
 </style>
 </head>
 <body>
@@ -230,7 +222,6 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
 </header>
 
 <!-- Turnstile (humano hacia nuestro API); invisible si está configurado en el servidor -->
-<div id="turnstile-scba-gate" style="position:fixed;width:1px;height:1px;left:-100px;top:0;overflow:hidden;pointer-events:none" aria-hidden="true"></div>
 
 <!-- MODAL AUTH -->
 <div class="modal-overlay" id="modal-auth">
@@ -239,46 +230,29 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <div class="modal-title">Bienvenido</div>
       <div class="modal-sub">Ingresá con tu cuenta para acceder a tus consultas</div>
       <div class="alert" id="login-alert"></div>
-      <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="tu@email.com"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="login-password" placeholder="••••••••"></div>
-      <button class="btn btn-primary" onclick="login()">Ingresar</button>
+      <form id="form-login" autocomplete="on">
+        <div class="field"><label for="login-email">Email</label><input type="email" id="login-email" name="login_email" autocomplete="username" placeholder="tu@email.com" inputmode="email"></div>
+        <div class="field"><label for="login-password">Contraseña</label><input type="password" id="login-password" name="login_password" autocomplete="current-password" placeholder="••••••••"></div>
+        <button type="submit" class="btn btn-primary">Ingresar</button>
+      </form>
       <div class="modal-switch">¿No tenés cuenta? <a onclick="toggleModal('registro')">Registrarse gratis</a></div>
     </div>
     <div id="modal-registro" style="display:none">
       <div class="modal-title">Crear cuenta</div>
       <div class="modal-sub">Creá tu cuenta para empezar a consultar</div>
       <div class="alert" id="reg-alert"></div>
-      <div class="field"><label>Nombre completo</label><input type="text" id="reg-nombre" placeholder="Fernando Rojas"></div>
-      <div class="field"><label>Email</label><input type="email" id="reg-email" placeholder="tu@email.com"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres"></div>
-      <button class="btn btn-primary" onclick="registro()">Crear cuenta gratis</button>
+      <form id="form-registro" autocomplete="on">
+        <div class="field"><label for="reg-nombre">Nombre completo</label><input type="text" id="reg-nombre" name="reg_nombre" autocomplete="name" placeholder="Fernando Rojas"></div>
+        <div class="field"><label for="reg-email">Email</label><input type="email" id="reg-email" name="reg_email" autocomplete="email" placeholder="tu@email.com" inputmode="email"></div>
+        <div class="field"><label for="reg-pass">Contraseña</label><input type="password" id="reg-pass" name="reg_password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></div>
+        <button type="submit" class="btn btn-primary">Crear cuenta gratis</button>
+      </form>
       <div class="modal-switch">¿Ya tenés cuenta? <a onclick="toggleModal('login')">Iniciar sesión</a></div>
     </div>
     <div style="text-align:right;margin-top:12px"><a class="link" style="font-size:12px" onclick="closeModal()">Cerrar</a></div>
   </div>
 </div>
 
-<!-- Modal verificación PJN (widget oficial) -->
-<div class="modal-overlay" id="modal-pjn-captcha" style="display:none;z-index:1100">
-  <div class="modal" style="max-width:460px">
-    <div class="modal-title">Verificación PJN</div>
-    <div class="modal-sub">Elegí cómo interactuar con el PJN. El desafío oficial solo aplica bien en el <strong>dominio del PJN</strong>; el widget integrado suele fallar fuera de <code>scw.pjn.gov.ar</code>. <strong>Siguiente</strong> sigue con la búsqueda automatizada en provincia (SCBA).</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;align-items:center">
-      <span style="font-size:11px;color:var(--gris-500);text-transform:uppercase;letter-spacing:0.06em;width:100%">Modo de visualización</span>
-      <button type="button" class="pjn-mode-btn active" id="pjn-mode-widget" data-pjn-mode="widget">Widget integrado</button>
-      <button type="button" class="pjn-mode-btn" id="pjn-mode-iframe" data-pjn-mode="iframe">Sitio oficial (iframe)</button>
-      <button type="button" class="pjn-mode-btn" id="pjn-mode-tab" data-pjn-mode="tab">Sitio oficial (nueva pestaña)</button>
-    </div>
-    <p id="pjn-captcha-msg" style="font-size:12px;color:var(--rojo);margin:8px 0;display:none"></p>
-    <div id="pjn-captcha-host-modal" style="min-height:100px;margin:12px 0"></div>
-    <p id="pjn-captcha-hint" style="font-size:12px;color:var(--gris-500);margin-bottom:10px;display:none">Listo: podés continuar.</p>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <button type="button" class="btn btn-primary" id="btn-pjn-captcha-continuar" disabled>Continuar</button>
-      <button type="button" class="btn btn-secondary" id="btn-pjn-captcha-siguiente">Siguiente (solo provincia por ahora)</button>
-    </div>
-    <div style="text-align:right;margin-top:10px"><a class="link" style="font-size:12px" id="link-pjn-captcha-cancel">Cancelar</a></div>
-  </div>
-</div>
 
 <!-- ââââââââââââââââââââââââââââââââââââââ -->
 <!-- PAGE: INICIO -->
@@ -524,6 +498,26 @@ const API_URL = (() => {
 const SUPABASE_URL = 'https://gluolujxtatwkmcufoem.supabase.co'; // Se reemplaza al configurar
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdW9sdWp4dGF0d2ttY3Vmb2VtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Njk4NzAsImV4cCI6MjA5MDU0NTg3MH0.QHeYQjwCPLN9H2Ujj5wRuufGtnViAqn0kWETDxNZtFI'; // Se reemplaza al configurar
 
+/** Consola: localhost / 127.0.0.1 / ?debug=1 o servidor con DEBUG_LOCAL=1 (vía /api/info). */
+let DEBUG_LOCAL = (function () {
+  try {
+    var h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') return true;
+    if (new URLSearchParams(window.location.search).get('debug') === '1') return true;
+  } catch (e0) {}
+  return false;
+})();
+function logLocal() {
+  if (!DEBUG_LOCAL) return;
+  var a = ['[ContrataSeguro]'].concat(Array.prototype.slice.call(arguments));
+  console.log.apply(console, a);
+}
+function logLocalErr() {
+  if (!DEBUG_LOCAL) return;
+  var a = ['[ContrataSeguro]'].concat(Array.prototype.slice.call(arguments));
+  console.error.apply(console, a);
+}
+
 let sb = null;
 let usuario = null;
 let perfil = null;
@@ -533,6 +527,9 @@ let resultadoActual = null;
 if (true) {
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   inicializarAuth();
+}
+if (DEBUG_LOCAL) {
+  logLocal('consola de depuración activa (localhost, ?debug=1 o api/info.debug_local). API_URL=', API_URL);
 }
 
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
@@ -544,6 +541,7 @@ async function inicializarAuth() {
   if (session) await setUsuario(session.user);
 
   sb.auth.onAuthStateChange(async (event, session) => {
+    logLocal('auth onAuthStateChange', event, session ? 'con sesión' : 'sin sesión');
     if (session) await setUsuario(session.user);
     else clearUsuario();
   });
@@ -551,6 +549,7 @@ async function inicializarAuth() {
 
 async function setUsuario(user) {
   usuario = user;
+  logLocal('setUsuario', user && user.email ? String(user.email).replace(/(@).*/, '$1…') : '(sin email)', 'id_len=' + (user && user.id ? String(user.id).length : 0));
   let { data } = await sb.from('perfiles').select('*').eq('id', user.id).single();
   // Si no tiene perfil, crearlo automáticamente
   if (!data) {
@@ -567,6 +566,7 @@ async function setUsuario(user) {
     data = result.data;
   }
   perfil = data;
+  logLocal('perfil cargado', data ? { plan: data.plan, creditos: data.creditos } : '(null)');
   actualizarHeaderUsuario();
 }
 
@@ -620,25 +620,51 @@ async function login() {
   const pass = document.getElementById('login-password').value;
   const alertEl = document.getElementById('login-alert');
   alertEl.className = 'alert';
+  alertEl.textContent = '';
 
   if (!sb) {
-    // Modo demo sin Supabase
+    logLocal('login: sin cliente Supabase (sb null)');
     closeModal();
     return;
   }
 
+  if (!email || !pass) {
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Ingresá email y contraseña.';
+    return;
+  }
+
+  logLocal('login intento', email.replace(/(@).*/, '$1…'));
   const { error } = await sb.auth.signInWithPassword({ email, password: pass });
   if (error) {
+    logLocalErr('signInWithPassword error', error.message || error);
     alertEl.className = 'alert error';
-    alertEl.textContent = 'Email o contraseña incorrectos';
-  } else {
-    closeModal();
-    // Si había un pago pendiente, ejecutarlo
-    if (window._pendingPlan) {
-      const plan = window._pendingPlan;
-      window._pendingPlan = null;
-      setTimeout(() => pagar(plan), 500);
+    const m = (error.message || '').toLowerCase();
+    if (m.includes('invalid login') || m.includes('invalid_credentials') || m.includes('invalid grant')) {
+      alertEl.textContent = 'Email o contraseña incorrectos.';
+    } else {
+      alertEl.textContent = error.message || 'No se pudo iniciar sesión. Probá de nuevo.';
     }
+    return;
+  }
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    logLocal('getSession tras login', session ? 'ok' : 'sin session');
+    if (session && session.user) await setUsuario(session.user);
+  } catch (e) {
+    console.error(e);
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Sesión iniciada pero falló cargar tu perfil. Recargá la página o revisá la tabla perfiles en Supabase (RLS).';
+    return;
+  }
+
+  logLocal('login OK, cerrando modal');
+  closeModal();
+  if (window._pendingPlan) {
+    const plan = window._pendingPlan;
+    window._pendingPlan = null;
+    setTimeout(() => pagar(plan), 500);
   }
 }
 
@@ -648,6 +674,8 @@ async function registro() {
   const pass = document.getElementById('reg-pass').value;
   const alertEl = document.getElementById('reg-alert');
   alertEl.className = 'alert';
+
+  logLocal('registro intento', { nombre_len: nombre.length, email: email.replace(/(@).*/, '$1…') });
 
   if (!nombre || !email || pass.length < 6) {
     alertEl.className = 'alert error';
@@ -663,6 +691,7 @@ async function registro() {
   });
 
   if (error) {
+    logLocalErr('signUp error', error.message || error);
     alertEl.className = 'alert error';
     alertEl.textContent = error.message.includes('already') ? 'Este email ya está registrado' : error.message;
     return;
@@ -684,10 +713,12 @@ async function registro() {
   // Login automático — mailer_autoconfirm está activo, no hace falta confirmar email
   const { error: loginError } = await sb.auth.signInWithPassword({ email, password: pass });
   if (!loginError) {
+    logLocal('registro: signIn automático OK');
     alertEl.className = 'alert success';
     alertEl.textContent = '¡Cuenta creada! Iniciando sesión...';
     setTimeout(() => { closeModal(); }, 1200);
   } else {
+    logLocalErr('registro: cuenta creada pero signIn falló', loginError.message || loginError);
     alertEl.className = 'alert success';
     alertEl.textContent = '¡Cuenta creada! Ya podés iniciar sesión.';
   }
@@ -698,6 +729,23 @@ async function logout() {
   clearUsuario();
   showPage('inicio');
 }
+
+(function bindAuthForms() {
+  var fl = document.getElementById('form-login');
+  if (fl) {
+    fl.addEventListener('submit', function (e) {
+      e.preventDefault();
+      login();
+    });
+  }
+  var fr = document.getElementById('form-registro');
+  if (fr) {
+    fr.addEventListener('submit', function (e) {
+      e.preventDefault();
+      registro();
+    });
+  }
+})();
 
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // NAVEGACIÓN
@@ -768,17 +816,19 @@ function unhoverPlan(card) {
 
 let evtSource = null; // conexión SSE activa
 let activeSearchId = 0; // evita que callbacks viejos pisen búsquedas nuevas
-let _pjnCaptchaPoll = null;
-const PJN_SCW_OFICIAL = 'https://scw.pjn.gov.ar/scw/home.seam';
-window.__PJN_TURNSTILE_SITEKEY = window.__PJN_TURNSTILE_SITEKEY || '';
-window.__turnstileWidgetId = window.__turnstileWidgetId || null;
 
 async function cargarConfigApiPublica() {
   try {
     var r = await fetch(API_URL + '/api/info');
     var j = await r.json();
-    window.__PJN_TURNSTILE_SITEKEY = (j.turnstile_site_key || '').trim();
-  } catch (e) {}
+    if (j.debug_local) {
+      DEBUG_LOCAL = true;
+      logLocal('/api/info: servidor con DEBUG_LOCAL=1');
+    }
+    logLocal('/api/info', { version: j.version, debug_local: !!j.debug_local });
+  } catch (e) {
+    logLocalErr('/api/info falló', e && e.message);
+  }
 }
 
 function cargarScriptTurnstile() {
@@ -794,259 +844,6 @@ function cargarScriptTurnstile() {
   });
 }
 
-async function esperarTurnstileAntesDePjn() {
-  var site = window.__PJN_TURNSTILE_SITEKEY;
-  if (!site) return '';
-  var el = document.getElementById('turnstile-scba-gate');
-  if (!el) return '';
-  await cargarScriptTurnstile();
-  return new Promise(function (resolve, reject) {
-    var t = setTimeout(function () { reject(new Error('Turnstile tardó demasiado')); }, 45000);
-    try {
-      el.innerHTML = '';
-      window.__turnstileWidgetId = null;
-      el.style.pointerEvents = 'auto';
-      window.__turnstileWidgetId = window.turnstile.render(el, {
-        sitekey: site,
-        size: 'invisible',
-        callback: function (token) {
-          clearTimeout(t);
-          el.style.pointerEvents = 'none';
-          resolve(token || '');
-        },
-        'error-callback': function () {
-          clearTimeout(t);
-          reject(new Error('Turnstile error'));
-        },
-        'expired-callback': function () {
-          clearTimeout(t);
-          reject(new Error('Turnstile expirado'));
-        },
-      });
-      window.turnstile.execute(window.__turnstileWidgetId);
-    } catch (e2) {
-      clearTimeout(t);
-      reject(e2);
-    }
-  });
-}
-
-function closePjnCaptchaModal() {
-  var host = document.getElementById('pjn-captcha-host-modal');
-  if (host) host.innerHTML = '';
-  var m = document.getElementById('modal-pjn-captcha');
-  if (m) { m.style.display = 'none'; m.classList.remove('open'); m.classList.remove('modal-pjn-wide'); }
-  if (_pjnCaptchaPoll) { clearInterval(_pjnCaptchaPoll); _pjnCaptchaPoll = null; }
-  ['pjn-mode-widget', 'pjn-mode-iframe', 'pjn-mode-tab'].forEach(function (id) {
-    var b = document.getElementById(id);
-    if (b) b.onclick = null;
-  });
-}
-
-function apiMismaOrigenQuePagina() {
-  try {
-    var a = new URL(API_URL || window.location.origin, window.location.href);
-    return a.origin === window.location.origin;
-  } catch (e0) {
-    return false;
-  }
-}
-
-function leerTokenPjnModal() {
-  var ifr = document.getElementById('pjn-captcha-iframe');
-  if (ifr) {
-    try {
-      var doc = ifr.contentDocument || (ifr.contentWindow && ifr.contentWindow.document);
-      if (doc) {
-        var inp = doc.getElementById('captcha-response') || doc.querySelector('input[name="captcha-response"]');
-        if (inp && inp.value) return String(inp.value).trim();
-      }
-    } catch (e1) {}
-  }
-  var host = document.getElementById('pjn-captcha-host-modal');
-  if (!host) return '';
-  var inp2 = host.querySelector('#captcha-response') || host.querySelector('input[name="captcha-response"]');
-  return inp2 && inp2.value ? String(inp2.value).trim() : '';
-}
-
-function openPjnCaptchaEmbedIframe() {
-  return new Promise(function (resolve, reject) {
-    var host = document.getElementById('pjn-captcha-host-modal');
-    if (!host) { reject(new Error('UI')); return; }
-    host.innerHTML = '';
-    if (!apiMismaOrigenQuePagina()) {
-      reject(new Error('cross_origin'));
-      return;
-    }
-    var nifr = document.createElement('iframe');
-    nifr.id = 'pjn-captcha-iframe';
-    nifr.title = 'Widget captcha PJN';
-    nifr.setAttribute('referrerpolicy', 'no-referrer');
-    nifr.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox');
-    nifr.style.cssText = 'width:100%;min-height:130px;border:0;border-radius:8px;background:#fff';
-    nifr.onload = function () { resolve(); };
-    nifr.onerror = function () { reject(new Error('iframe')); };
-    host.appendChild(nifr);
-    var base = (API_URL || '').replace(/\/$/, '') || window.location.origin;
-    nifr.src = base + '/pjn/captcha-embed.html?t=' + Date.now();
-  });
-}
-
-function montarIframeScwOficial() {
-  var host = document.getElementById('pjn-captcha-host-modal');
-  if (!host) return;
-  host.innerHTML = '';
-  var ifr = document.createElement('iframe');
-  ifr.id = 'pjn-scw-oficial';
-  ifr.title = 'Sistema de Consultas Web — PJN';
-  ifr.setAttribute(
-    'sandbox',
-    'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads',
-  );
-  ifr.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-  ifr.style.cssText = 'width:100%;height:min(65vh,560px);border:0;border-radius:8px;background:#fff';
-  ifr.src = PJN_SCW_OFICIAL;
-  host.appendChild(ifr);
-}
-
-function mostrarModalPjnCaptcha(prepareJson) {
-  return new Promise(function (resolve, reject) {
-    var m = document.getElementById('modal-pjn-captcha');
-    var btn = document.getElementById('btn-pjn-captcha-continuar');
-    var btnSig = document.getElementById('btn-pjn-captcha-siguiente');
-    var hint = document.getElementById('pjn-captcha-hint');
-    var msg = document.getElementById('pjn-captcha-msg');
-    var cancel = document.getElementById('link-pjn-captcha-cancel');
-    var mw = document.getElementById('pjn-mode-widget');
-    var mi = document.getElementById('pjn-mode-iframe');
-    var mt = document.getElementById('pjn-mode-tab');
-    if (!m || !btn || !btnSig) { reject(new Error('UI')); return; }
-    var currentMode = 'widget';
-    btn.disabled = true;
-    btnSig.disabled = false;
-    if (hint) {
-      hint.style.display = 'none';
-      hint.textContent = 'Listo: podés continuar.';
-    }
-    if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
-    m.style.display = 'flex';
-    m.classList.add('open');
-
-    function setModeActive(mode) {
-      [mw, mi, mt].forEach(function (el) {
-        if (!el) return;
-        el.classList.toggle('active', el.getAttribute('data-pjn-mode') === mode);
-      });
-    }
-
-    function applyMode(mode) {
-      currentMode = mode;
-      setModeActive(mode);
-      m.classList.toggle('modal-pjn-wide', mode === 'iframe');
-      if (_pjnCaptchaPoll) { clearInterval(_pjnCaptchaPoll); _pjnCaptchaPoll = null; }
-      if (mode === 'widget') {
-        btn.disabled = true;
-        if (hint) { hint.style.display = 'none'; }
-        openPjnCaptchaEmbedIframe().catch(function (err) {
-          if (msg) {
-            msg.style.display = 'block';
-            msg.textContent = err.message === 'cross_origin'
-              ? 'API en otro dominio: el widget integrado no está disponible. Probá «Sitio oficial» o «Siguiente».'
-              : 'No se cargó el embed del widget. Probá «Sitio oficial» o «Siguiente».';
-          }
-        });
-        _pjnCaptchaPoll = setInterval(function () {
-          var tok = leerTokenPjnModal();
-          if (tok && tok.length >= 8) {
-            btn.disabled = false;
-            if (hint) hint.style.display = 'block';
-          }
-        }, 350);
-      } else if (mode === 'iframe') {
-        montarIframeScwOficial();
-        btn.disabled = true;
-        if (hint) {
-          hint.style.display = 'block';
-          hint.textContent =
-            'Estás viendo el sitio oficial del PJN. Así el desafío corre en su dominio (mejor compatibilidad). La importación automática a esta app sigue necesitando el token del modo «Widget integrado» o usá «Siguiente» para SCBA.';
-        }
-      } else {
-        var host = document.getElementById('pjn-captcha-host-modal');
-        if (host) {
-          host.innerHTML =
-            '<p style="font-size:13px;line-height:1.5;color:var(--gris-900)">Se abrió <strong>scw.pjn.gov.ar</strong> en otra ventana. Allí podés demostrar que sos una persona ante el PJN. Esta app no puede leer el resultado de esa ventana por seguridad del navegador.</p>';
-        }
-        try {
-          window.open(PJN_SCW_OFICIAL, 'pjn_scw', 'noopener,noreferrer,width=1240,height=900');
-        } catch (e0) {}
-        btn.disabled = true;
-        if (hint) {
-          hint.style.display = 'block';
-          hint.textContent = 'Para la búsqueda automática en esta pantalla, volvé a «Widget integrado» o pulsá «Siguiente» (solo provincia).';
-        }
-      }
-    }
-
-    function cleanup() {
-      closePjnCaptchaModal();
-      btn.onclick = null;
-      btnSig.onclick = null;
-      cancel.onclick = null;
-    }
-    btnSig.onclick = function () {
-      cleanup();
-      resolve({ skipped: true });
-    };
-    cancel.onclick = function () { cleanup(); reject(new Error('Verificación PJN cancelada')); };
-    btn.onclick = function () {
-      if (currentMode !== 'widget') {
-        alert('Para «Continuar» con enlace al servidor, usá el modo «Widget integrado» y completá el recuadro, o pulsá «Siguiente».');
-        return;
-      }
-      var tok = leerTokenPjnModal();
-      if (!tok || tok.length < 4) { alert('Completá el desafío del captcha antes de continuar.'); return; }
-      cleanup();
-      resolve({ token: tok });
-    };
-    if (mw) mw.onclick = function () { applyMode('widget'); };
-    if (mi) mi.onclick = function () { applyMode('iframe'); };
-    if (mt) mt.onclick = function () { applyMode('tab'); };
-    applyMode('widget');
-  });
-}
-
-async function prepararSesionPjn(nombreBuscar, modo, cuilParam, turnstileToken) {
-  var body = {};
-  if (modo === 'cuil' && cuilParam) body.cuil = String(cuilParam).replace(/\D/g, '');
-  else body.nombre = (nombreBuscar || '').trim();
-  if (turnstileToken) body.turnstile_token = turnstileToken;
-  var r = await fetch(API_URL + '/pjn/prepare', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  var j = await r.json().catch(function () { return {}; });
-  if (!j.ok) {
-    var err = j.error || ('Error PJN (' + r.status + ')');
-    if (err === 'turnstile_invalido') {
-      err = 'Verificaci\u00f3n humana rechazada o caducada. Recarg\u00e1 la p\u00e1gina e intent\u00e1 de nuevo.';
-    }
-    throw new Error(err);
-  }
-  if (!j.needs_widget) return j.session_id;
-  var res = await mostrarModalPjnCaptcha(j);
-  if (res && res.skipped) return null;
-  var token = res && res.token ? res.token : '';
-  if (!token) throw new Error('Token de captcha vacío');
-  var r2 = await fetch(API_URL + '/pjn/verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: j.session_id, captcha_response: token }),
-  });
-  var vj = await r2.json().catch(function () { return {}; });
-  if (!vj.ok) throw new Error(vj.error || 'Captcha rechazado');
-  return j.session_id;
-}
 
 function toggleBusquedaModo() {
   const modo = document.getElementById('inp-modo-busqueda').value;
@@ -1117,31 +914,7 @@ async function iniciarBusqueda() {
   document.getElementById('resultados-section').style.display = 'none';
   document.getElementById('planes-promo').style.display = 'none';
 
-  var tsTok = '';
-  try {
-    await cargarConfigApiPublica();
-    tsTok = await esperarTurnstileAntesDePjn();
-  } catch (eTs) {
-    if (window.__PJN_TURNSTILE_SITEKEY) {
-      document.getElementById('btn-buscar').disabled = false;
-      var elTs = document.getElementById('buscar-error');
-      elTs.textContent = '\u26a0 Verificación humana (Turnstile): ' + (eTs && eTs.message ? eTs.message : 'reintentá');
-      elTs.style.display = 'block';
-      return;
-    }
-  }
-
-  var pjnSessionId = null;
-  try {
-    pjnSessionId = await prepararSesionPjn(nombre, modo, cuilParam, tsTok);
-  } catch (e) {
-    document.getElementById('btn-buscar').disabled = false;
-    if (e && e.message && e.message.indexOf('cancelada') >= 0) return;
-    var elPjn = document.getElementById('buscar-error');
-    elPjn.textContent = '\u26a0 ' + (e && e.message ? e.message : 'No se pudo validar PJN');
-    elPjn.style.display = 'block';
-    return;
-  }
+  try { await cargarConfigApiPublica(); } catch (e) {}
 
   document.getElementById('progress-card').style.display = 'block';
   document.getElementById('prog-bar').style.width = '0%';
@@ -1154,8 +927,8 @@ async function iniciarBusqueda() {
   if (cuilParam) url += '&cuil=' + encodeURIComponent(cuilParam);
   else url += '&nombre=' + encodeURIComponent(nombre);
   if (token) url += '&token=' + encodeURIComponent(token);
-  if (pjnSessionId) url += '&pjn_session_id=' + encodeURIComponent(pjnSessionId);
 
+  logLocal('buscar/stream EventSource', url.replace(/token=[^&]+/, 'token=(redactado)'));
   try {
     evtSource = new EventSource(url);
   } catch(e) {
@@ -1179,6 +952,9 @@ async function iniciarBusqueda() {
     el.style.display = 'block';
   }, 310000);
 
+  currentSource.onerror = function (err) {
+    logLocalErr('EventSource error / buscar/stream', err && err.type ? err.type : err);
+  };
   currentSource.onmessage = async (e) => {
     if (!isActiveSearch() || evtSource !== currentSource) return;
     try {

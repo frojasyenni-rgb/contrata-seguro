@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Sin Referer en subrecursos: PJN devuelve ~247 B si el Referer no es de pjn.gov.ar -->
-  <meta name="referrer" content="no-referrer" />
+  <!-- no-referrer deja document.referrer vacío: el widget PJN usa eso para postMessage y rompe en localhost. -->
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>Captcha PJN</title>
   <style>html,body{margin:0;padding:6px;font-family:system-ui,sans-serif;background:#f5f5f5}</style>
 </head>

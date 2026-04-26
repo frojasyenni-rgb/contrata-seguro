@@ -1,13 +1,13 @@
 # Análisis arquitectónico y mejoras propuestas
 
-Aquí va el análisis con el repo revisado (código en `contrata-seguro/`: `index.html`, `api.py`, `buscar_simple.py`, `entrypoint_gunicorn.py`, `railway.toml`, `nixpacks.toml`, `Procfile`, `Dockerfile`, `requirements.txt`, `CNAME`, `.gitignore`). No hay carpeta `.github/` ni workflows de Pages en el repo.
+Aquí va el análisis con el repo revisado (código en `contrata-seguro/`: `static/index.html`, `api.py`, `buscar_simple.py`, `entrypoint_gunicorn.py`, `railway.toml`, `nixpacks.toml`, `Procfile`, `Dockerfile`, `requirements.txt`, `.gitignore`, carpeta `docs/`). El despliegue estático en GitHub Pages usa `.github/workflows/github-pages.yml` publicando la carpeta `static/`.
 
 ---
 
 ## 1. Arquitectura general
 
 **Frontend**
-- Un solo artefacto: `index.html` (HTML + CSS + JS inline).
+- Un solo artefacto: `static/index.html` (HTML + CSS + JS inline).
 - Dependencias por CDN: `@supabase/supabase-js`, SDK MercadoPago, Google Fonts.
 - No hay build (Vite/Webpack), ni bundle, ni tests frontend en el repo.
 
@@ -16,8 +16,8 @@ Aquí va el análisis con el repo revisado (código en `contrata-seguro/`: `inde
 - `buscar_simple.py`: scraping SCBA + PJN, progreso por stdout, resultado final en línea `RESULTADO:...`.
 
 **Despliegue inferido**
-- **Railway**: `railway.toml`, `nixpacks.toml`, `Procfile`, `Dockerfile`, `entrypoint_gunicorn.py` (Gunicorn -> `api:app`). El propio backend sirve `index.html` en `GET /` (comentario en código: sitio en Railway).
-- **GitHub Pages / dominio**: `CNAME` con `contrataseguro.ar` suele usarse para Pages, pero **en el repo no hay** configuración de GitHub Actions ni `docs/` separado: el “deploy Pages” queda fuera del código (manual o en otro repo).
+- **Railway**: `railway.toml`, `nixpacks.toml`, `Procfile`, `Dockerfile`, `entrypoint_gunicorn.py` (Gunicorn -> `api:app`). El backend sirve `static/index.html` en `GET /`.
+- **GitHub Pages**: workflow en `.github/workflows/github-pages.yml`; el artefacto publicado es el contenido de `static/` (mismo HTML que consume Railway en `/`).
 
 **¿Estática (Pages) + API (Railway)?**
 El frontend asume `API_URL = window.location.origin` (mismo origen que la página). Eso encaja si **todo** (HTML + API) corre en el **mismo host** (p. ej. Railway con dominio custom). Si en producción el HTML vive en **GitHub Pages** y la API en **otro host** (p. ej. `*.up.railway.app`), **las llamadas a `/buscar/stream` y `/pagar` fallarían** sin cambiar `API_URL` o un proxy inverso bajo el mismo dominio.
@@ -54,7 +54,7 @@ El frontend asume `API_URL = window.location.origin` (mismo origen que la págin
 ## 3. Configuración de deploy
 
 - **Railway**: start command unificado vía `entrypoint_gunicorn.py`; `PORT` bien manejado; Gunicorn `--timeout 300`, **1 worker** (explícito límite de concurrencia).
-- **GitHub Pages**: solo `CNAME`; sin `jekyll`, sin workflow; el README casi vacío no documenta el flujo.
+- **GitHub Pages**: workflow que publica `static/`; si usás dominio custom, configurá `CNAME` en Pages según la doc de GitHub (no obligatorio en el repo).
 - **Dockerfile**: Python 3.13-slim; coherente con `requirements.txt`.
 - **nixpacks**: instala `mercadopago` dos veces (ya está en `requirements.txt`) -> redundante pero no grave.
 
@@ -64,7 +64,7 @@ El frontend asume `API_URL = window.location.origin` (mismo origen que la págin
 - Variables esperadas (inferidas): `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `MP_ACCESS_TOKEN`, `APP_URL`, `ADMIN_TOKEN`, `WA_INTERNO_NUM`, `SCBA_USUARIO`, `SCBA_PASSWORD`, `PORT`. No hay `.env.example` en el repo -> onboarding frágil.
 
 **Malas prácticas de deployment**
-- Misma carpeta de repo para “sitio estático” y “API” sin separación de artefactos ni CI.
+- El repo mezcla API Python y front en `static/`; el workflow de Pages ya separa el artefacto publicado (`static/`) del resto del código.
 - Endpoint de diagnóstico en producción (ver seguridad).
 
 ---

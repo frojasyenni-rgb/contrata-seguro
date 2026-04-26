@@ -2,19 +2,63 @@
 CONTRATA SEGURO - API Backend v2.2
 Flask + Supabase + MercadoPago + SSE streaming + Flujo PJN pendiente
 """
-from flask import Flask, request, jsonify, Response, stream_with_context, send_file
+import os
+import logging
+import subprocess, json, re, sys, threading, queue, time, hmac, hashlib, tempfile, uuid
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(Path(_PROJECT_ROOT) / ".env")
+
+
+def _env_truthy(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+_DEBUG_LOCAL = _env_truthy("DEBUG_LOCAL")
+
+from flask import Flask, request, jsonify, Response, stream_with_context, send_file, g
 from flask_cors import CORS
-import subprocess, json, os, re, sys, threading, queue, time, hmac, hashlib, tempfile, uuid
 
 import mercadopago
 import requests
 from supabase import create_client
 
-from pjn_session import export_cookies_path, prepare as pjn_prepare, touch as pjn_touch, verify as pjn_verify
+from pjn_session import export_cookies_path, get_results as pjn_get_results, prepare as pjn_prepare, touch as pjn_touch, verify as pjn_verify
 
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_STATIC_DIR = os.path.join(_PROJECT_ROOT, "static")
 app = Flask(__name__)
 CORS(app, origins=["*"])
+
+if _DEBUG_LOCAL:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [local] %(message)s",
+        force=True,
+    )
+    app.logger.setLevel(logging.INFO)
+    app.logger.info(
+        "DEBUG_LOCAL activo: se registran método, ruta, status y tiempo (no uses en prod con datos sensibles)."
+    )
+
+
+@app.before_request
+def _debug_before_request():
+    if not _DEBUG_LOCAL:
+        return
+    g._debug_t0 = time.time()
+
+
+@app.after_request
+def _debug_after_request(resp):
+    if not _DEBUG_LOCAL:
+        return resp
+    t0 = getattr(g, "_debug_t0", None)
+    dt_ms = (time.time() - t0) * 1000.0 if t0 is not None else -1.0
+    app.logger.info("%s %s -> %s (%.1f ms)", request.method, request.path, resp.status_code, dt_ms)
+    return resp
 
 API_SERVICIO = "Contrata Seguro API"
 API_VERSION = "2.2"
@@ -219,13 +263,15 @@ def _api_scraper_trace(msg):
     print(f"[API/buscar_stream] {msg}", flush=True, file=sys.stderr)
 
 
-def _argv_buscar_simple(nombre, cuil=None, caratula="apellido", pjn_cookies_file=None):
+def _argv_buscar_simple(nombre, cuil=None, caratula="apellido", pjn_cookies_file=None, skip_pjn=False):
     """CLI de buscar_simple: --cuil o nombre con --caratula apellido|completo."""
-    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
+    script = os.path.join(_PROJECT_ROOT, "buscar_simple.py")
     caratula = (caratula or "apellido").strip().lower()
     if caratula not in ("apellido", "completo"):
         caratula = "apellido"
     base = [sys.executable, script, "--caratula", caratula]
+    if skip_pjn:
+        base += ["--skip-pjn"]
     if pjn_cookies_file:
         base += ["--pjn-cookies-file", pjn_cookies_file]
     if cuil:
@@ -249,15 +295,20 @@ def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session
                 pjn_cookies_path = None
             else:
                 pjn_touch(pjn_session_id)
+        # Si la sesión ya tiene resultados PJN pre-computados (captcha resuelto + búsqueda hecha),
+        # se le indica al subprocess que omita PJN para evitar un segundo captcha.
+        pjn_stored = pjn_get_results(pjn_session_id) if pjn_session_id else None
+        skip_pjn = pjn_stored is not None
         _api_scraper_trace(
             f"lanzando scraper nombre={nombre!r} cuil={cuil!r} caratula={caratula!r} "
-            f"pjn_session={'ok' if pjn_cookies_path else 'no'}",
+            f"pjn_session={'ok' if pjn_cookies_path else 'no'} skip_pjn={skip_pjn}",
         )
         argv = _argv_buscar_simple(
             nombre,
             cuil=cuil,
             caratula=caratula,
-            pjn_cookies_file=pjn_cookies_path,
+            pjn_cookies_file=pjn_cookies_path if not skip_pjn else None,
+            skip_pjn=skip_pjn,
         )
         # stderr del hijo al stderr del proceso Flask/Gunicorn: logs en tiempo real (Railway, local).
         proc = subprocess.Popen(
@@ -265,7 +316,7 @@ def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session
             stdout=subprocess.PIPE,
             stderr=sys.stderr,
             text=True, bufsize=1,
-            cwd=os.path.dirname(os.path.abspath(__file__)),
+            cwd=_PROJECT_ROOT,
         )
         resultado_final = None
         n_progreso = 0
@@ -293,7 +344,7 @@ def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session
             f"resultado={'ok' if resultado_final else 'falta'}",
         )
         if not resultado_final:
-            json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resultado.json")
+            json_path = os.path.join(_PROJECT_ROOT, "resultado.json")
             if os.path.exists(json_path):
                 with open(json_path, encoding="utf-8") as f:
                     resultado_final = json.load(f)
@@ -314,12 +365,12 @@ def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session
 
 @app.route("/", methods=["GET"])
 def index():
-    """Sitio en Railway: HTML en raíz; metadatos JSON en /api/info."""
+    """Sitio en Railway: HTML en static/; metadatos JSON en /api/info."""
     resp = send_file(
-        os.path.join(_BASE_DIR, "index.html"),
+        os.path.join(_STATIC_DIR, "index.html"),
         mimetype="text/html; charset=utf-8",
     )
-    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return resp
 
 
@@ -349,6 +400,8 @@ def api_info():
     out = {"servicio": API_SERVICIO, "version": API_VERSION}
     if TURNSTILE_SITE_KEY:
         out["turnstile_site_key"] = TURNSTILE_SITE_KEY
+    if _DEBUG_LOCAL:
+        out["debug_local"] = True
     return jsonify(out)
 
 @app.route("/health", methods=["GET"])
@@ -367,13 +420,28 @@ _PJN_INIT_HDR = {
     "Origin": "https://scw.pjn.gov.ar",
 }
 
+_PJN_WIDGET_FILENAME = re.compile(r"^widget\.scw\.[a-zA-Z0-9_.-]+\.html$")
+
+
+def _rewrite_pjn_init_js_widget_urls(body: str) -> str:
+    """
+    PJN solo entrega el HTML completo del widget si el Referer es scw.pjn.gov.ar.
+    El navegador desde otro origen recibe ~247 B ('Captcha no disponible').
+    Reescribimos la URL del widget hacia nuestro proxy same-origin.
+    """
+    return re.sub(
+        r"https://captcha\.pjn\.gov\.ar/api/(widget\.scw\.[^\"'\s>]+)",
+        r"/pjn/captcha-widget/\1",
+        body or "",
+    )
+
 
 @app.route("/pjn/captcha-init.js", methods=["GET"])
 def pjn_captcha_init_js():
     """
-    Sirve init.js del captcha PJN sin caché agresiva del navegador.
-    El widget embebido rechaza Referer de dominios ajenos a PJN (~247 B en vez del HTML real).
-    El HTML del front debe usar <meta name="referrer" content="no-referrer"> para el iframe.
+    Sirve init.js del captcha PJN; reescribe la URL del HTML del widget para /pjn/captcha-widget/.
+    El fetch a init.js lo hace el servidor con Referer SCW; el HTML del widget lo pide el
+    navegador al proxy y el servidor vuelve a pedirlo a PJN con las mismas cabeceras.
     """
     try:
         r = requests.get(
@@ -382,7 +450,7 @@ def pjn_captcha_init_js():
             timeout=25,
         )
         r.raise_for_status()
-        body = r.text or ""
+        body = _rewrite_pjn_init_js_widget_urls(r.text or "")
         return Response(
             body,
             mimetype="application/javascript; charset=utf-8",
@@ -399,18 +467,65 @@ def pjn_captcha_init_js():
         )
 
 
+@app.route("/pjn/captcha-widget/<path:fname>", methods=["GET"])
+def pjn_captcha_widget_proxy(fname: str):
+    """HTML del widget PJN vía servidor (Referer SCW); el cliente no puede cumplir esa condición."""
+    if not _PJN_WIDGET_FILENAME.match(fname or ""):
+        return Response("bad widget path", mimetype="text/plain; charset=utf-8", status=400)
+    try:
+        q = request.query_string.decode("utf-8") if request.query_string else ""
+        url = "https://captcha.pjn.gov.ar/api/" + fname
+        if q:
+            url = url + "?" + q
+        r = requests.get(
+            url,
+            headers={
+                **_PJN_INIT_HDR,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+            timeout=25,
+        )
+        r.raise_for_status()
+        html = r.text or ""
+        if len(html) < 3000:
+            return Response(
+                "<!-- pjn widget stub o error: respuesta corta desde PJN -->\n" + html,
+                mimetype="text/html; charset=utf-8",
+                status=502,
+            )
+        if re.search(r"(?i)<head[^>]*>", html):
+            html = re.sub(
+                r"(?i)<head([^>]*)>",
+                r'<head\1><base href="https://captcha.pjn.gov.ar/api/">',
+                html,
+                count=1,
+            )
+        return Response(
+            html,
+            mimetype="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
+    except Exception as e:
+        return Response(
+            "<!DOCTYPE html><html><body>proxy error: "
+            + str(e).replace("<", " ")
+            + "</body></html>",
+            mimetype="text/html; charset=utf-8",
+            status=502,
+        )
+
+
 @app.route("/pjn/captcha-embed.html", methods=["GET"])
 def pjn_captcha_embed_html():
     """
-    Página mínima same-origin para el iframe del captcha.
-    El documento usa referrer no-referrer para que el iframe interno del widget
-    no envíe Referer de un dominio externo (PJN responde HTML truncado ~247 B).
+    Página mínima same-origin para el iframe del captcha (script /pjn/captcha-init.js).
+    El HTML del widget se sirve vía /pjn/captcha-widget/ para evitar el filtro Referer de PJN.
     """
     resp = send_file(
-        os.path.join(_BASE_DIR, "pjn_captcha_embed.html"),
+        os.path.join(_STATIC_DIR, "pjn_captcha_embed.html"),
         mimetype="text/html; charset=utf-8",
     )
-    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -439,6 +554,13 @@ def pjn_prepare_route():
         if not _turnstile_verify(tf, request.remote_addr or ""):
             return jsonify({"ok": False, "error": "turnstile_invalido"}), 403
     out = pjn_prepare(nombre)
+    if _DEBUG_LOCAL:
+        app.logger.info(
+            "pjn/prepare ok=%s needs_widget=%s nombre_len=%s",
+            out.get("ok"),
+            out.get("needs_widget"),
+            len(nombre),
+        )
     if not out.get("ok"):
         return jsonify(out), 400
     return jsonify(out)
@@ -450,9 +572,13 @@ def pjn_verify_route():
     data = request.get_json(silent=True) or {}
     sid = (data.get("session_id") or "").strip()
     token = (data.get("captcha_response") or data.get("token") or "").strip()
+    if _DEBUG_LOCAL:
+        app.logger.info("pjn/verify session_id_len=%s token_len=%s", len(sid), len(token))
     if not sid:
         return jsonify({"ok": False, "error": "session_id_requerido"}), 400
     out = pjn_verify(sid, token)
+    if _DEBUG_LOCAL:
+        app.logger.info("pjn/verify result ok=%s error=%s", out.get("ok"), out.get("error"))
     if not out.get("ok"):
         return jsonify(out), 400
     return jsonify(out)
@@ -470,6 +596,16 @@ def buscar_stream():
             return jsonify({"error": "CUIL/CUIT invalido (debe tener 11 digitos)"}), 400
     elif not nombre or len(nombre) < 2:
         return jsonify({"error": "Nombre invalido"}), 400
+
+    if _DEBUG_LOCAL:
+        app.logger.info(
+            "buscar/stream nombre_len=%s cuil=%s caratula=%s token_present=%s pjn_session=%s",
+            len(nombre or ""),
+            bool(cuil),
+            caratula,
+            bool((token or "").strip()),
+            bool(pjn_session_id),
+        )
 
     usuario_id = None; usar_credito = False; usuario_email = ""
     if token and supabase:
@@ -524,6 +660,16 @@ def buscar_stream():
                 yield f"data: {json.dumps({'tipo':'log', **data})}\n\n"
 
             elif tipo == "resultado":
+                # Mergear resultados PJN pre-computados (captcha resuelto) antes de emitir
+                if pjn_session_id:
+                    pjn_stored = pjn_get_results(pjn_session_id)
+                    if pjn_stored:
+                        pjn_causas, pjn_estado = pjn_stored
+                        data = dict(data)
+                        data["causas"] = (data.get("causas") or []) + pjn_causas
+                        data["causas_pjn"] = len(pjn_causas)
+                        data["total"] = len(data["causas"])
+                        data["estado_pjn"] = pjn_estado
                 resultado_para_guardar = data
                 estado_pjn = data.get("estado_pjn", "ok")
                 msg = {"tipo": "resultado", "resultado": data, "pjn_estado": estado_pjn}
@@ -583,8 +729,8 @@ def buscar():
         argv=_argv_buscar_simple(nombre,cuil=cuil,caratula=caratula)
         result=subprocess.run(argv,
                               capture_output=True,text=True,timeout=300,
-                              cwd=os.path.dirname(os.path.abspath(__file__)))
-        json_path=os.path.join(os.path.dirname(os.path.abspath(__file__)),"resultado.json")
+                              cwd=_PROJECT_ROOT)
+        json_path=os.path.join(_PROJECT_ROOT, "resultado.json")
         if os.path.exists(json_path):
             with open(json_path,encoding="utf-8") as f: resultado=json.load(f)
         else: return jsonify({"error":result.stderr[-500:] or "Sin resultado"}),500
@@ -799,13 +945,13 @@ def debug_scraper():
     nombre = request.args.get("nombre", "MOSTEYRO")
     cuil = request.args.get("cuil", "").strip() or None
     caratula = request.args.get("caratula", "apellido")
-    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "buscar_simple.py")
+    script = os.path.join(_PROJECT_ROOT, "buscar_simple.py")
     try:
         argv = _argv_buscar_simple(nombre, cuil=cuil, caratula=caratula)
         result = subprocess.run(
             argv,
             capture_output=True, text=True, timeout=30,
-            cwd=os.path.dirname(os.path.abspath(__file__))
+            cwd=_PROJECT_ROOT,
         )
         return jsonify({
             "stdout_last500": result.stdout[-500:],

@@ -12,6 +12,7 @@ import json
 import re
 import threading
 import time
+import unicodedata
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -248,6 +249,73 @@ def prepare(nombre_busqueda: str) -> Dict[str, Any]:
         }
 
 
+def _normalizar_pjn(texto: str) -> str:
+    return unicodedata.normalize("NFD", (texto or "").upper()).encode("ascii", "ignore").decode("ascii")
+
+
+def _contiene_partes(texto: str, partes: List[str]) -> bool:
+    t = " " + _normalizar_pjn(texto) + " "
+    return all((" " + p + " ") in t for p in partes)
+
+
+def _parse_pjn_results(html: str, nombre: str, camara_nombre: str) -> List[Dict[str, Any]]:
+    """Parsea la tabla de resultados de scw.pjn.gov.ar buscando la tabla con más filas de datos."""
+    if not html:
+        return []
+    soup = BeautifulSoup(html, "html.parser")
+    partes = [_normalizar_pjn(p) for p in (nombre or "").split() if p]
+    if not partes:
+        return []
+
+    # Encuentra la tabla con más filas que tengan al menos 3 celdas con texto
+    result_table = None
+    max_data_rows = 0
+    for tbl in soup.find_all("table"):
+        data_rows = 0
+        for row in tbl.find_all("tr"):
+            cells = row.find_all("td")
+            if len(cells) >= 3 and len(cells[0].get_text(strip=True)) >= 5:
+                data_rows += 1
+        if data_rows > max_data_rows:
+            max_data_rows = data_rows
+            result_table = tbl
+
+    if not result_table or max_data_rows == 0:
+        return []
+
+    causas = []
+    for fila in result_table.find_all("tr")[1:]:
+        celdas = [td.get_text(" ", strip=True) for td in fila.find_all("td")]
+        if len(celdas) < 3 or len(celdas[0]) < 5:
+            continue
+        caratula = celdas[0]
+        cn = _normalizar_pjn(caratula)
+        sep = cn.find(" C/ ")
+        actor_parte = cn[:sep] if sep >= 0 else cn
+        demandado_parte = cn[sep + 1:] if sep >= 0 else ""
+        if _contiene_partes(actor_parte, partes):
+            rol = "ACTOR"
+        elif _contiene_partes(demandado_parte, partes):
+            rol = "DEMANDADO"
+        elif _contiene_partes(cn, partes):
+            rol = "INDETERMINADO"
+        else:
+            continue
+        causas.append({
+            "caratula": caratula,
+            "expediente": celdas[1] if len(celdas) > 1 else "",
+            "juzgado": celdas[2] if len(celdas) > 2 else camara_nombre,
+            "fecha_inicio": celdas[3] if len(celdas) > 3 else "",
+            "ultima_actuacion": celdas[4] if len(celdas) > 4 else "",
+            "estado": celdas[5] if len(celdas) > 5 else "",
+            "fuente": "PJN",
+            "rol": rol,
+            "dni_actor": "",
+            "dni_validacion": "no_validado",
+        })
+    return causas
+
+
 def verify(session_id: str, captcha_response: str) -> Dict[str, Any]:
     captcha_response = (captcha_response or "").strip()
     if not captcha_response:
@@ -260,15 +328,23 @@ def verify(session_id: str, captcha_response: str) -> Dict[str, Any]:
             return {"ok": False, "error": "sesion_no_encontrada"}
         s: requests.Session = row["session"]
         html = row.get("last_html") or ""
+        nombre = row.get("nombre", "")
 
-    data = _collect_form_publica(html)
-    if not data:
-        return {"ok": False, "error": "formulario_no_parseable"}
+    if not nombre:
+        return {"ok": False, "error": "nombre_no_disponible"}
+
     vs = _viewstate(html)
-    if vs:
-        data["javax.faces.ViewState"] = vs
+    if not vs:
+        return {"ok": False, "error": "viewstate_no_encontrado"}
+
+    # Combinar campos del formulario con los parámetros de búsqueda y el captcha
+    data = _collect_form_publica(html) or {}
+    data["javax.faces.ViewState"] = vs
     data["formPublica"] = "formPublica"
     data["formPublica:expedienteTab-value"] = "porParte"
+    data["formPublica:caratula"] = nombre
+    data["formPublica:camara"] = "CNT"
+    data["formPublica:btnSearch"] = "Buscar"
     data["captcha-response"] = captcha_response
 
     r = s.post(_HOME, data=data, timeout=25)
@@ -282,14 +358,39 @@ def verify(session_id: str, captcha_response: str) -> Dict[str, Any]:
                 _STORE[session_id]["viewstate"] = _viewstate(r.text)
         return {"ok": False, "error": "captcha_rechazado_o_aun_pendiente"}
 
+    # Captcha aceptado: parsear resultados CNT
+    causas = _parse_pjn_results(r.text, nombre, "Camara Nacional del Trabajo")
+
+    # Obtener nuevo ViewState para la siguiente cámara
+    soup_cnt = BeautifulSoup(r.text, "html.parser")
+    vs2_tag = soup_cnt.find("input", {"name": "javax.faces.ViewState"})
+    vstate2 = (vs2_tag.get("value") or vs) if vs2_tag else vs
+
+    # Búsqueda para Cámara Federal de Seguridad Social
+    try:
+        r_css = s.post(_HOME, data={
+            "javax.faces.ViewState": vstate2,
+            "formPublica": "formPublica",
+            "formPublica:expedienteTab-value": "porParte",
+            "formPublica:caratula": nombre,
+            "formPublica:camara": "CSS",
+            "formPublica:btnSearch": "Buscar",
+        }, timeout=25)
+        if not (pjn_captcha_widget_present(r_css.text) or es_captcha_pjn(r_css.text)):
+            causas.extend(_parse_pjn_results(r_css.text, nombre, "Camara Federal Seg. Social"))
+    except Exception:
+        pass
+
     with _LOCK:
         if session_id in _STORE:
             _STORE[session_id]["last_html"] = r.text
             _STORE[session_id]["viewstate"] = _viewstate(r.text)
             _STORE[session_id]["captcha_ok"] = True
             _STORE[session_id]["phase"] = "ready"
+            _STORE[session_id]["causas"] = causas
+            _STORE[session_id]["estado_pjn"] = "ok"
 
-    return {"ok": True}
+    return {"ok": True, "causas_encontradas": len(causas)}
 
 
 def load_cookies_file(session: requests.Session, path: str) -> None:
@@ -316,3 +417,14 @@ def touch(session_id: str) -> None:
     with _LOCK:
         if session_id in _STORE:
             _STORE[session_id]["created"] = _now()
+
+
+def get_results(session_id: str) -> Optional[Tuple[List[Dict[str, Any]], str]]:
+    """Devuelve (causas, estado_pjn) si la sesión ya tiene resultados pre-computados, None si no."""
+    with _LOCK:
+        row = _STORE.get(session_id)
+        if not row:
+            return None
+        if "causas" in row:
+            return row["causas"], row.get("estado_pjn", "ok")
+        return None

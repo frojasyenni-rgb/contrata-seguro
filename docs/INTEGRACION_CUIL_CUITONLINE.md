@@ -9,7 +9,7 @@ Este documento describe cómo el backend resuelve un **CUIL/CUIT** a **denominac
 | `cuitonline_lookup.py` | `GET https://www.cuitonline.com/search/{11 dígitos}` y parseo del nombre. |
 | `buscar_simple.py` | CLI: `--cuil`, `--caratula apellido\|completo`, argumentos de nombre. |
 | `api.py` | Construye la línea de comandos del scraper según query/body. |
-| `index.html` | Selector de modo y campo CUIL en el flujo del usuario. |
+| `static/index.html` | Selector de modo y campo CUIL en el flujo del usuario. |
 
 ## Dónde aparece el nombre en Cuit Online (parseo)
 
