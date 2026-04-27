@@ -280,7 +280,8 @@ def _argv_buscar_simple(nombre, cuil=None, caratula="apellido", pjn_cookies_file
     return base + [nombre.strip()]
 
 
-def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session_id=None):
+def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session_id=None,
+                          scba_usuario=None, scba_password=None, pjn_usuario=None, pjn_password=None):
     pjn_cookies_path = None
     try:
         if pjn_session_id:
@@ -311,12 +312,18 @@ def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session
             skip_pjn=skip_pjn,
         )
         # stderr del hijo al stderr del proceso Flask/Gunicorn: logs en tiempo real (Railway, local).
+        env_sub = dict(os.environ)
+        if scba_usuario: env_sub["SCBA_USUARIO"] = scba_usuario
+        if scba_password: env_sub["SCBA_PASSWORD"] = scba_password
+        if pjn_usuario:  env_sub["PJN_USUARIO"]  = pjn_usuario
+        if pjn_password: env_sub["PJN_PASSWORD"]  = pjn_password
         proc = subprocess.Popen(
             argv,
             stdout=subprocess.PIPE,
             stderr=sys.stderr,
             text=True, bufsize=1,
             cwd=_PROJECT_ROOT,
+            env=env_sub,
         )
         resultado_final = None
         n_progreso = 0
@@ -607,6 +614,7 @@ def buscar_stream():
             bool(pjn_session_id),
         )
 
+    _pcred = {}
     usuario_id = None; usar_credito = False; usuario_email = ""
     if token and supabase:
         try:
@@ -614,6 +622,7 @@ def buscar_stream():
             usuario_id    = user.user.id
             usuario_email = user.user.email or ""
             perfil = get_perfil(usuario_id)
+            _pcred = perfil or {}
             if perfil:
                 plan       = perfil.get("plan","gratis")
                 suscripcion= perfil.get("suscripcion_activa", False)
@@ -637,7 +646,13 @@ def buscar_stream():
     t = threading.Thread(
         target=correr_scraper_stream,
         args=(nombre or "", q),
-        kwargs={"cuil": cuil, "caratula": caratula, "pjn_session_id": pjn_session_id},
+        kwargs={
+            "cuil": cuil, "caratula": caratula, "pjn_session_id": pjn_session_id,
+            "scba_usuario": _pcred.get("scba_usuario") or None,
+            "scba_password": _pcred.get("scba_password") or None,
+            "pjn_usuario":  _pcred.get("pjn_usuario")  or None,
+            "pjn_password": _pcred.get("pjn_password")  or None,
+        },
         daemon=True,
     )
     t.start()
@@ -715,21 +730,28 @@ def buscar():
         dig=re.sub(r"\D","",cuil)
         if len(dig)!=11: return jsonify({"error":"CUIL/CUIT invalido"}),400
     elif not nombre or len(nombre.strip()) < 2: return jsonify({"error":"Nombre invalido"}),400
+    _pcred2 = {}
     usuario_id=None; usar_credito=False; usuario_email=""
     if token and supabase:
         try:
             user=supabase.auth.get_user(token); usuario_id=user.user.id; usuario_email=user.user.email or ""
             perfil=get_perfil(usuario_id)
+            _pcred2 = perfil or {}
             if perfil:
                 if perfil.get("plan")=="profesional" and perfil.get("suscripcion_activa"): usar_credito=False
                 elif perfil.get("creditos",0)<=0: return jsonify({"error":"Sin creditos"}),402
                 else: usar_credito=True
         except: pass
     try:
+        env_sub2 = dict(os.environ)
+        if _pcred2.get("scba_usuario"): env_sub2["SCBA_USUARIO"] = _pcred2["scba_usuario"]
+        if _pcred2.get("scba_password"): env_sub2["SCBA_PASSWORD"] = _pcred2["scba_password"]
+        if _pcred2.get("pjn_usuario"):  env_sub2["PJN_USUARIO"]  = _pcred2["pjn_usuario"]
+        if _pcred2.get("pjn_password"): env_sub2["PJN_PASSWORD"]  = _pcred2["pjn_password"]
         argv=_argv_buscar_simple(nombre,cuil=cuil,caratula=caratula)
         result=subprocess.run(argv,
                               capture_output=True,text=True,timeout=300,
-                              cwd=_PROJECT_ROOT)
+                              cwd=_PROJECT_ROOT,env=env_sub2)
         json_path=os.path.join(_PROJECT_ROOT, "resultado.json")
         if os.path.exists(json_path):
             with open(json_path,encoding="utf-8") as f: resultado=json.load(f)
@@ -777,11 +799,14 @@ def mis_consultas():
     r=supabase.table("consultas").select("id,nombre_buscado,total_causas,causas_scba,causas_pjn,created_at,estado_pjn").eq("usuario_id",user.id).order("created_at",desc=True).limit(50).execute()
     return jsonify({"consultas":r.data or []})
 
+_CAMPOS_PRIVADOS = {"scba_usuario", "scba_password", "pjn_usuario", "pjn_password"}
+
 @app.route("/perfil", methods=["GET"])
 def mi_perfil():
     user,err=verificar_token(request)
     if err: return jsonify({"error":err}),401
-    return jsonify(get_perfil(user.id) or {})
+    p = get_perfil(user.id) or {}
+    return jsonify({k: v for k, v in p.items() if k not in _CAMPOS_PRIVADOS})
 
 @app.route("/perfil", methods=["PUT"])
 def actualizar_perfil():
@@ -791,6 +816,28 @@ def actualizar_perfil():
     campos={k:v for k,v in data.items() if k in ["nombre","empresa","cuit"]}
     supabase.table("perfiles").update(campos).eq("id",user.id).execute()
     return jsonify({"ok":True})
+
+@app.route("/perfil/credenciales", methods=["PUT"])
+def guardar_credenciales():
+    user, err = verificar_token(request)
+    if err: return jsonify({"error": err}), 401
+    data = request.get_json() or {}
+    campos = {k: v for k, v in data.items()
+              if k in ("scba_usuario", "scba_password", "pjn_usuario", "pjn_password") and v}
+    if not campos:
+        return jsonify({"error": "No se enviaron credenciales válidas"}), 400
+    supabase.table("perfiles").update(campos).eq("id", user.id).execute()
+    return jsonify({"ok": True})
+
+@app.route("/perfil/credenciales-status", methods=["GET"])
+def estado_credenciales():
+    user, err = verificar_token(request)
+    if err: return jsonify({"error": err}), 401
+    p = get_perfil(user.id) or {}
+    return jsonify({
+        "scba_configuradas": bool(p.get("scba_usuario") and p.get("scba_password")),
+        "pjn_configuradas":  bool(p.get("pjn_usuario")  and p.get("pjn_password")),
+    })
 
 @app.route("/pagar", methods=["POST"])
 def crear_pago():

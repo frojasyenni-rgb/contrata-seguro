@@ -4,6 +4,7 @@ import argparse
 import requests, os, unicodedata
 from bs4 import BeautifulSoup
 import json, time, sys, re, logging
+from typing import Optional
 from urllib.parse import urljoin
 
 from cuitonline_lookup import lookup_cuitonline
@@ -622,77 +623,22 @@ def buscar_scba():
     log.info("SCBA: fin con %s causa(s) acumuladas", len(todas))
     return todas
 
+
 def buscar_pjn():
-    BASE_PJN = "https://scw.pjn.gov.ar"
+    """
+    Busca causas en PJN (CNT + CSS).
+    La IP del servidor Railway siempre recibe captcha en requests HTTP.
+    Usa Playwright directamente — el navegador real pasa el fingerprinting de F5.
+    """
+    log.info("PJN: iniciando búsqueda con Playwright (caratula=%r)", NOMBRE)
     try:
-        log.info("PJN: iniciando home.seam (caratula=%r)", NOMBRE)
-        s = requests.Session(); s.headers.update(HDR)
-        if PJN_COOKIES_FILE and os.path.isfile(PJN_COOKIES_FILE):
-            try:
-                load_cookies_file(s, PJN_COOKIES_FILE)
-                log.info("PJN: cookies de sesión humana cargadas desde %s", PJN_COOKIES_FILE)
-            except Exception:
-                log.exception("PJN: no se pudieron cargar cookies desde %s", PJN_COOKIES_FILE)
-        r = s.get(f"{BASE_PJN}/scw/home.seam", timeout=15)
-        log.debug("PJN: GET home HTTP %s len=%s", r.status_code, len(r.text or ""))
-        if es_captcha_pjn(r.text):
-            log.warning("PJN: captcha o bloqueo detectado en home")
-            return [], "captcha_required"
-        soup = BeautifulSoup(r.text, "html.parser")
-        vs = soup.find("input", {"name": "javax.faces.ViewState"})
-        vstate = vs["value"] if vs else ""
-        if not vstate:
-            log.warning("PJN: ViewState vacio; la busqueda puede fallar")
-        causas = []
-        for cod, nombre in [("CNT","Camara Nacional del Trabajo"),("CSS","Camara Federal Seg. Social")]:
-            try:
-                log.info("PJN: POST busqueda camara=%s (%s)", cod, nombre)
-                r2 = s.post(f"{BASE_PJN}/scw/home.seam", data={
-                    "javax.faces.ViewState": vstate, "formPublica": "formPublica",
-                    "formPublica:expedienteTab-value": "porParte",
-                    "formPublica:caratula": NOMBRE, "formPublica:camara": cod,
-                    "formPublica:btnSearch": "Buscar"}, timeout=20)
-                log.debug("PJN: POST %s HTTP %s len=%s", cod, r2.status_code, len(r2.text or ""))
-                if es_captcha_pjn(r2.text):
-                    log.warning("PJN: captcha en respuesta camara=%s", cod)
-                    return [], "captcha_required"
-                soup2 = BeautifulSoup(r2.text, "html.parser")
-                # Encontrar la tabla con más filas de datos (evita tablas de navegación)
-                result_table = None
-                max_data_rows = 0
-                for tbl in soup2.find_all("table"):
-                    data_rows = sum(
-                        1 for row in tbl.find_all("tr")
-                        if len(row.find_all("td")) >= 3 and len(row.find_all("td")[0].get_text(strip=True)) >= 5
-                    )
-                    if data_rows > max_data_rows:
-                        max_data_rows = data_rows
-                        result_table = tbl
-                for fila in (result_table.find_all("tr")[1:] if result_table else []):
-                    celdas = [td.get_text(" ", strip=True) for td in fila.find_all("td")]
-                    if len(celdas) < 3 or len(celdas[0]) < 5: continue
-                    cn = normalizar(celdas[0])
-                    sep = cn.find(" C/ ")
-                    actor_parte = cn[:sep] if sep >= 0 else cn
-                    demandado_parte = cn[sep+1:] if sep >= 0 else ""
-                    if es_actor(actor_parte): rol = "ACTOR"
-                    elif contiene_terminos(demandado_parte, FILTRAR_POR): rol = "DEMANDADO"
-                    else: rol = "INDETERMINADO"
-                    causas.append({
-                        "caratula": celdas[0],
-                        "expediente": celdas[1] if len(celdas) > 1 else "",
-                        "juzgado": celdas[2] if len(celdas) > 2 else nombre,
-                        "fecha_inicio": celdas[3] if len(celdas) > 3 else "",
-                        "ultima_actuacion": celdas[4] if len(celdas) > 4 else "",
-                        "estado": celdas[5] if len(celdas) > 5 else "",
-                        "fuente": "PJN", "rol": rol,
-                        "dni_actor": "", "dni_validacion": "no_validado",
-                    })
-            except Exception:
-                log.exception("PJN: error en camara %s", cod)
-                continue
-        log.info("PJN: fin con %s causa(s) estado=ok", len(causas))
-        return causas, "ok"
+        from pjn_playwright import buscar_pjn_playwright
+        causas, estado = buscar_pjn_playwright(NOMBRE)
+        log.info("PJN: fin con %d causa(s) estado=%s", len(causas), estado)
+        return causas, estado
+    except ImportError:
+        log.error("PJN: pjn_playwright no disponible, verificar instalación de playwright")
+        return [], "error"
     except Exception:
         log.exception("PJN: error general")
         return [], "error"

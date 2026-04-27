@@ -8,3 +8,7 @@ lxml
 mercadopago>=2.2.0,<3
 supabase
 PyJWT
+playwright>=1.40.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+easyocr>=1.7.0

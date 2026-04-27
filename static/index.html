@@ -481,6 +481,71 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
         <div class="field"><label>Email</label><input type="email" id="cuenta-email" disabled style="opacity:0.6"></div>
         <button class="btn btn-primary" onclick="guardarCuenta()" style="width:auto;padding:10px 24px">Guardar cambios</button>
       </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-title" style="margin-bottom:4px">Credenciales de acceso</div>
+        <p style="font-size:13px;color:var(--gris-600);margin-bottom:16px">Ingresá tus credenciales de SCBA y PJN para realizar consultas. Si no completás la contraseña, la existente no cambia.</p>
+        <div class="alert" id="cred-alert" role="status" aria-live="polite"></div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:13px;font-weight:600">SCBA</span>
+          <span id="cred-estado-scba" style="font-size:12px;color:#94a3b8"></span>
+        </div>
+        <div class="row">
+          <div class="field"><label>Usuario SCBA</label><input type="text" id="cred-scba-usuario" autocomplete="off" placeholder="Tu usuario del MEV"></div>
+          <div class="field"><label>Contraseña SCBA</label><input type="password" id="cred-scba-password" autocomplete="off" placeholder="Nueva contraseña (o dejá vacío)"></div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;margin-top:14px">
+          <span style="font-size:13px;font-weight:600">PJN</span>
+          <span id="cred-estado-pjn" style="font-size:12px;color:#94a3b8"></span>
+        </div>
+        <div class="row">
+          <div class="field"><label>Usuario PJN</label><input type="text" id="cred-pjn-usuario" autocomplete="off" placeholder="Tu usuario del PJN"></div>
+          <div class="field"><label>Contraseña PJN</label><input type="password" id="cred-pjn-password" autocomplete="off" placeholder="Nueva contraseña (o dejá vacío)"></div>
+        </div>
+
+        <button class="btn btn-primary" onclick="guardarCredenciales('cred-', false)" style="width:auto;padding:10px 24px;margin-top:8px">Guardar credenciales</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────── -->
+<!-- PAGE: CONFIGURACIÓN DE CUENTA             -->
+<!-- ──────────────────────────────────────────── -->
+<div class="page" id="page-config">
+  <div class="container" style="max-width:640px">
+    <div style="text-align:center;margin:40px 0 28px">
+      <div style="font-family:'Fraunces',serif;font-size:26px;font-weight:700;margin-bottom:10px">Configurá tu cuenta</div>
+      <p style="color:var(--gris-600);font-size:15px;margin:0;line-height:1.5">Para realizar consultas necesitás ingresar tus credenciales de SCBA y PJN.<br>Son datos privados, solo los usás vos y nunca son compartidos.</p>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="card-title" style="margin-bottom:0">SCBA — Suprema Corte Buenos Aires</div>
+        <span id="config-estado-scba" style="font-size:12px;color:#94a3b8"></span>
+      </div>
+      <p style="font-size:13px;color:var(--gris-600);margin-bottom:14px">Tus credenciales de acceso al MEV (Mesa de Entradas Virtual).</p>
+      <div class="field"><label>Usuario SCBA</label><input type="text" id="config-scba-usuario" autocomplete="off" placeholder="Tu usuario del MEV"></div>
+      <div class="field"><label>Contraseña SCBA</label><input type="password" id="config-scba-password" autocomplete="off" placeholder="Tu contraseña del MEV"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="card-title" style="margin-bottom:0">PJN — Poder Judicial de la Nación</div>
+        <span id="config-estado-pjn" style="font-size:12px;color:#94a3b8"></span>
+      </div>
+      <p style="font-size:13px;color:var(--gris-600);margin-bottom:14px">Tus credenciales de acceso al sistema del PJN.</p>
+      <div class="field"><label>Usuario PJN</label><input type="text" id="config-pjn-usuario" autocomplete="off" placeholder="Tu usuario del PJN"></div>
+      <div class="field"><label>Contraseña PJN</label><input type="password" id="config-pjn-password" autocomplete="off" placeholder="Tu contraseña del PJN"></div>
+    </div>
+
+    <div class="alert" id="config-alert" role="status" aria-live="polite" style="margin-bottom:14px"></div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <a class="link" onclick="showPage('inicio')" style="font-size:14px">Configurar después</a>
+      <button class="btn btn-primary" onclick="guardarCredenciales('config-', true)">Guardar y continuar</button>
     </div>
   </div>
 </div>
@@ -714,9 +779,8 @@ async function registro() {
   const { error: loginError } = await sb.auth.signInWithPassword({ email, password: pass });
   if (!loginError) {
     logLocal('registro: signIn automático OK');
-    alertEl.className = 'alert success';
-    alertEl.textContent = '¡Cuenta creada! Iniciando sesión...';
-    setTimeout(() => { closeModal(); }, 1200);
+    closeModal();
+    showPage('config');
   } else {
     logLocalErr('registro: cuenta creada pero signIn falló', loginError.message || loginError);
     alertEl.className = 'alert success';
@@ -755,6 +819,7 @@ function showPage(name, opts) {
   document.getElementById(`page-${name}`).classList.add('active');
   if (name === 'panel') cargarPanel(opts || {});
   if (name === 'inicio' && typeof toggleBusquedaModo === 'function') toggleBusquedaModo();
+  if (name === 'config') cargarEstadoCredenciales();
   window.scrollTo(0,0);
 }
 
@@ -1157,6 +1222,7 @@ async function cargarCuenta() {
   document.getElementById('cuenta-empresa').value = perfil.empresa || '';
   document.getElementById('cuenta-cuit').value = perfil.cuit || '';
   document.getElementById('cuenta-email').value = usuario?.email || '';
+  cargarEstadoCredenciales();
 }
 
 let _cuentaGuardadoTimer = null;
@@ -1199,6 +1265,82 @@ async function guardarCuenta() {
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // PAGOS
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+
+async function guardarCredenciales(prefix, redirigir) {
+  const alertEl = document.getElementById(prefix + 'alert');
+  if (!alertEl) return;
+  alertEl.className = 'alert';
+  alertEl.textContent = '';
+
+  if (!sb || !usuario) { showModal('login'); return; }
+  const { data: { session } } = await sb.auth.getSession();
+  const token = session?.access_token;
+  if (!token) { showModal('login'); return; }
+
+  const g = id => document.getElementById(prefix + id);
+  const scbaU = (g('scba-usuario')?.value  || '').trim();
+  const scbaP = (g('scba-password')?.value || '');
+  const pjnU  = (g('pjn-usuario')?.value   || '').trim();
+  const pjnP  = (g('pjn-password')?.value  || '');
+
+  const campos = {};
+  if (scbaU) campos.scba_usuario = scbaU;
+  if (scbaP) campos.scba_password = scbaP;
+  if (pjnU)  campos.pjn_usuario  = pjnU;
+  if (pjnP)  campos.pjn_password = pjnP;
+
+  if (!Object.keys(campos).length) {
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Ingresa al menos un campo para guardar.';
+    return;
+  }
+
+  try {
+    const resp = await fetch(API_URL + '/perfil/credenciales', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(campos)
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error al guardar');
+    alertEl.className = 'alert success';
+    alertEl.textContent = 'Credenciales guardadas correctamente.';
+    if (redirigir) {
+      setTimeout(() => showPage('inicio'), 1400);
+    } else {
+      cargarEstadoCredenciales();
+      setTimeout(() => { alertEl.className = 'alert'; alertEl.textContent = ''; }, 5000);
+    }
+  } catch (e) {
+    alertEl.className = 'alert error';
+    alertEl.textContent = e.message || 'No se pudieron guardar las credenciales.';
+  }
+}
+
+async function cargarEstadoCredenciales() {
+  if (!sb || !usuario) return;
+  const { data: { session } } = await sb.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return;
+  try {
+    const resp = await fetch(API_URL + '/perfil/credenciales-status', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const setEstado = (id, ok) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = ok ? '✓ Configuradas' : 'Sin configurar';
+      el.style.color  = ok ? '#22c55e' : '#94a3b8';
+    };
+    setEstado('cred-estado-scba',   data.scba_configuradas);
+    setEstado('cred-estado-pjn',    data.pjn_configuradas);
+    setEstado('config-estado-scba', data.scba_configuradas);
+    setEstado('config-estado-pjn',  data.pjn_configuradas);
+  } catch (e) {}
+}
+
 async function pagar(planKey) {
   // RESET: limpiar preferencia anterior para permitir re-selección
   

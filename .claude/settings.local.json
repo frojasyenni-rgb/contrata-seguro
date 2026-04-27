@@ -5,7 +5,14 @@
       "Bash(py --version)",
       "Bash(where python3 *)",
       "Bash(where python *)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(python -m playwright install chromium)",
+      "Bash(python *)",
+      "Bash(winget install *)",
+      "Bash(xargs cat *)",
+      "Bash(python3 *)",
+      "Bash(node *)"
     ]
   }
 }
