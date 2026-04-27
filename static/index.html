@@ -493,7 +493,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
         </div>
         <div class="row">
           <div class="field"><label>Usuario SCBA</label><input type="text" id="cred-scba-usuario" autocomplete="off" placeholder="Tu usuario del MEV"></div>
-          <div class="field"><label>Contraseña SCBA</label><input type="password" id="cred-scba-password" autocomplete="off" placeholder="Nueva contraseña (o dejá vacío)"></div>
+          <div class="field"><label>Contraseña SCBA</label><input type="password" id="cred-scba-password" autocomplete="off" placeholder="Tu contraseña del MEV"></div>
         </div>
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;margin-top:14px">
@@ -502,7 +502,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
         </div>
         <div class="row">
           <div class="field"><label>Usuario PJN</label><input type="text" id="cred-pjn-usuario" autocomplete="off" placeholder="Tu usuario del PJN"></div>
-          <div class="field"><label>Contraseña PJN</label><input type="password" id="cred-pjn-password" autocomplete="off" placeholder="Nueva contraseña (o dejá vacío)"></div>
+          <div class="field"><label>Contraseña PJN</label><input type="password" id="cred-pjn-password" autocomplete="off" placeholder="Tu contraseña del PJN"></div>
         </div>
 
         <button class="btn btn-primary" onclick="guardarCredenciales('cred-', false)" style="width:auto;padding:10px 24px;margin-top:8px">Guardar credenciales</button>
@@ -528,7 +528,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       </div>
       <p style="font-size:13px;color:var(--gris-600);margin-bottom:14px">Tus credenciales de acceso al MEV (Mesa de Entradas Virtual).</p>
       <div class="field"><label>Usuario SCBA</label><input type="text" id="config-scba-usuario" autocomplete="off" placeholder="Tu usuario del MEV"></div>
-      <div class="field"><label>Contraseña SCBA</label><input type="password" id="config-scba-password" autocomplete="off" placeholder="Tu contraseña del MEV"></div>
+      <div class="field"><label>Contraseña SCBA</label><input type="password" id="config-scba-password" autocomplete="off" placeholder="Tu contraseña del MEV (requerida)"></div>
     </div>
 
     <div class="card" style="margin-bottom:24px">
@@ -1283,17 +1283,13 @@ async function guardarCredenciales(prefix, redirigir) {
   const pjnU  = (g('pjn-usuario')?.value   || '').trim();
   const pjnP  = (g('pjn-password')?.value  || '');
 
-  const campos = {};
-  if (scbaU) campos.scba_usuario = scbaU;
-  if (scbaP) campos.scba_password = scbaP;
-  if (pjnU)  campos.pjn_usuario  = pjnU;
-  if (pjnP)  campos.pjn_password = pjnP;
-
-  if (!Object.keys(campos).length) {
+  if (!scbaU && !scbaP && !pjnU && !pjnP) {
     alertEl.className = 'alert error';
-    alertEl.textContent = 'Ingresa al menos un campo para guardar.';
+    alertEl.textContent = 'Ingresá al menos un campo para guardar.';
     return;
   }
+
+  const campos = { scba_usuario: scbaU, scba_password: scbaP, pjn_usuario: pjnU, pjn_password: pjnP };
 
   try {
     const resp = await fetch(API_URL + '/perfil/credenciales', {
@@ -1338,6 +1334,19 @@ async function cargarEstadoCredenciales() {
     setEstado('cred-estado-pjn',    data.pjn_configuradas);
     setEstado('config-estado-scba', data.scba_configuradas);
     setEstado('config-estado-pjn',  data.pjn_configuradas);
+
+    const setCampo = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val || '';
+    };
+    setCampo('cred-scba-usuario',   data.scba_usuario);
+    setCampo('cred-scba-password',  data.scba_password);
+    setCampo('cred-pjn-usuario',    data.pjn_usuario);
+    setCampo('cred-pjn-password',   data.pjn_password);
+    setCampo('config-scba-usuario', data.scba_usuario);
+    setCampo('config-scba-password',data.scba_password);
+    setCampo('config-pjn-usuario',  data.pjn_usuario);
+    setCampo('config-pjn-password', data.pjn_password);
   } catch (e) {}
 }
 

@@ -837,6 +837,10 @@ def estado_credenciales():
     return jsonify({
         "scba_configuradas": bool(p.get("scba_usuario") and p.get("scba_password")),
         "pjn_configuradas":  bool(p.get("pjn_usuario")  and p.get("pjn_password")),
+        "scba_usuario":  p.get("scba_usuario")  or "",
+        "scba_password": p.get("scba_password") or "",
+        "pjn_usuario":   p.get("pjn_usuario")   or "",
+        "pjn_password":  p.get("pjn_password")  or "",
     })
 
 @app.route("/pagar", methods=["POST"])
