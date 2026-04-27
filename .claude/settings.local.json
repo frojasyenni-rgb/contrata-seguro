@@ -14,5 +14,6 @@
       "Bash(python3 *)",
       "Bash(node *)"
     ]
-  }
+  },
+  "prefersReducedMotion": true
 }
