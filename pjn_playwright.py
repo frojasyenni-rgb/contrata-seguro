@@ -168,8 +168,106 @@ def _solve_captcha_image(img_b64: str) -> Optional[str]:
     return _solve_with_ocr(img_b64)
 
 
+def _transcribe_audio_bytes(audio_bytes: bytes, ext: str = "mp3") -> Optional[str]:
+    """Transcribe audio del captcha usando la API de Whisper (OpenAI). Requiere OPENAI_API_KEY."""
+    api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        log.warning("PJN Playwright: OPENAI_API_KEY no configurada, no se puede transcribir audio")
+        return None
+    try:
+        import requests as req
+        mime = {"mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg"}.get(ext, "audio/mpeg")
+        r = req.post(
+            "https://api.openai.com/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            files={"file": (f"captcha_audio.{ext}", audio_bytes, mime)},
+            data={"model": "whisper-1"},
+            timeout=30,
+        )
+        r.raise_for_status()
+        text = r.json().get("text", "").strip()
+        cleaned = "".join(c for c in text if c.isalnum()).upper()
+        log.info("PJN Playwright: Whisper raw=%r → cleaned=%r", text, cleaned)
+        return cleaned if cleaned else None
+    except Exception as exc:
+        log.error("PJN Playwright: Whisper API error: %s", exc)
+        return None
+
+
+def _try_audio_challenge(captcha_frame, page) -> Optional[str]:
+    """
+    Busca el botón de audio en el frame del captcha, descarga el audio y lo transcribe con Whisper.
+    Retorna el texto resuelto o None si no hay desafío de audio disponible.
+    """
+    audio_btn = captcha_frame.query_selector(
+        "button.audio-button, "
+        "[aria-label*='audio' i], [aria-label*='sound' i], [aria-label*='voz' i], "
+        ".audio-challenge-btn, #audio-challenge-btn, "
+        "[data-type='audio'], [data-mode='audio'], "
+        "a.audio, button.audio, .challenge-audio, "
+        "button[title*='audio' i], button[title*='voz' i]"
+    )
+    if not audio_btn:
+        log.debug("PJN Playwright: no hay botón de audio en el captcha")
+        return None
+
+    log.info("PJN Playwright: botón de audio encontrado, iniciando desafío de voz")
+    try:
+        audio_btn.click()
+        page.wait_for_timeout(2000)
+    except Exception as exc:
+        log.warning("PJN Playwright: error al clickear botón de audio: %s", exc)
+        return None
+
+    audio_info = captcha_frame.evaluate("""
+        () => {
+            const audio = document.querySelector('audio');
+            if (audio) {
+                const src = audio.currentSrc || audio.src;
+                if (src) return { url: src, type: 'audio' };
+                const source = audio.querySelector('source');
+                if (source && source.src) return { url: source.src, type: 'audio' };
+            }
+            const link = document.querySelector(
+                'a[href*=".mp3"], a[href*=".wav"], a[href*=".ogg"], a[href*="audio"], a[download]'
+            );
+            if (link) return { url: link.href, type: 'link' };
+            const el = document.querySelector('[data-audio-src], [data-src*="audio"]');
+            if (el) {
+                const u = el.getAttribute('data-audio-src') || el.getAttribute('data-src');
+                if (u) return { url: u, type: 'data' };
+            }
+            return null;
+        }
+    """)
+
+    if not audio_info or not (audio_info.get("url") or "").strip():
+        log.warning("PJN Playwright: no se encontró URL de audio en el captcha")
+        return None
+
+    audio_url = audio_info["url"]
+    log.info("PJN Playwright: descargando audio desde %s", audio_url[:100])
+
+    try:
+        import requests as req
+        r = req.get(audio_url, timeout=20)
+        r.raise_for_status()
+        audio_bytes = r.content
+        ctype = r.headers.get("Content-Type", "")
+        if "wav" in ctype or audio_url.lower().endswith(".wav"):
+            ext = "wav"
+        elif "ogg" in ctype or audio_url.lower().endswith(".ogg"):
+            ext = "ogg"
+        else:
+            ext = "mp3"
+        return _transcribe_audio_bytes(audio_bytes, ext)
+    except Exception as exc:
+        log.error("PJN Playwright: error descargando audio del captcha: %s", exc)
+        return None
+
+
 def _try_solve_captcha_if_present(page) -> None:
-    """Si el iframe del captcha está presente, intenta resolverlo."""
+    """Si el iframe del captcha está presente, intenta resolverlo (audio primero, luego OCR visual)."""
     captcha_frame = next(
         (f for f in page.frames if "captcha.pjn.gov.ar" in f.url), None
     )
@@ -183,28 +281,37 @@ def _try_solve_captcha_if_present(page) -> None:
     log.info("PJN Playwright: captcha presente, haciendo click en VER DESAFÍO")
     btn.click()
     try:
-        captcha_frame.wait_for_selector('img[src^="data:image"]', timeout=8_000)
+        captcha_frame.wait_for_selector(
+            'img[src^="data:image"], audio, .audio-button, [aria-label*="audio" i]',
+            timeout=8_000,
+        )
     except Exception:
         page.wait_for_timeout(3_000)
 
-    img_b64 = captcha_frame.evaluate("""
-        () => {
-            const img = document.querySelector('img[src^="data:image"]');
-            if (!img) return null;
-            const src = img.src;
-            const idx = src.indexOf('base64,');
-            return idx >= 0 ? src.substring(idx + 7) : null;
-        }
-    """)
+    # Intentar resolver por audio/voz primero
+    sol = _try_audio_challenge(captcha_frame, page)
 
-    if not img_b64:
-        log.warning("PJN Playwright: no se encontró imagen del challenge")
-        return
-
-    log.info("PJN Playwright: imagen obtenida (%d chars base64)", len(img_b64))
-    sol = _solve_captcha_image(img_b64)
     if not sol:
-        log.warning("PJN Playwright: no se pudo resolver el captcha")
+        # Fallback: resolver por imagen (OCR visual)
+        img_b64 = captcha_frame.evaluate("""
+            () => {
+                const img = document.querySelector('img[src^="data:image"]');
+                if (!img) return null;
+                const src = img.src;
+                const idx = src.indexOf('base64,');
+                return idx >= 0 ? src.substring(idx + 7) : null;
+            }
+        """)
+
+        if not img_b64:
+            log.warning("PJN Playwright: no se encontró imagen ni audio del challenge")
+            return
+
+        log.info("PJN Playwright: usando OCR visual, imagen (%d chars base64)", len(img_b64))
+        sol = _solve_captcha_image(img_b64)
+
+    if not sol:
+        log.warning("PJN Playwright: no se pudo resolver el captcha (ni audio ni OCR)")
         return
 
     log.info("PJN Playwright: solución captcha: %r", sol)

@@ -480,11 +480,11 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
         <div class="field"><label>CUIT</label><input type="text" id="cuenta-cuit" placeholder="20-12345678-9"></div>
         <div class="field"><label>Email</label><input type="email" id="cuenta-email" disabled style="opacity:0.6"></div>
         <button class="btn btn-primary" onclick="guardarCuenta()" style="width:auto;padding:10px 24px">Guardar cambios</button>
-      </div>
 
-      <div class="card" style="margin-top:16px">
-        <div class="card-title" style="margin-bottom:4px">Credenciales de acceso</div>
-        <p style="font-size:13px;color:var(--gris-600);margin-bottom:16px">Ingresá tus credenciales de SCBA y PJN para realizar consultas. Si no completás la contraseña, la existente no cambia.</p>
+        <hr style="border:none;border-top:1px solid var(--gris-200);margin:20px 0">
+
+        <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--azul);margin-bottom:6px">Credenciales para consultas</div>
+        <p style="font-size:13px;color:var(--gris-500);margin-bottom:14px">Ingresá tus usuarios y contraseñas de SCBA y PJN. Se usan para hacer las búsquedas en tu nombre.</p>
         <div class="alert" id="cred-alert" role="status" aria-live="polite"></div>
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -1237,16 +1237,26 @@ async function guardarCuenta() {
   el.className = 'alert';
   el.textContent = '';
 
-  const { error } = await sb.from('perfiles').update({
-    nombre: document.getElementById('cuenta-nombre').value.trim(),
-    empresa: document.getElementById('cuenta-empresa').value.trim(),
-    cuit: document.getElementById('cuenta-cuit').value.trim(),
-  }).eq('id', usuario.id);
+  const { data: { session } } = await sb.auth.getSession();
+  const token = session?.access_token;
+  if (!token) { showModal('login'); return; }
 
-  if (error) {
-    el.className = 'alert error cuenta-msg-in';
-    el.textContent = error.message || 'No se pudieron guardar los datos. Probá de nuevo.';
-  } else {
+  try {
+    const resp = await fetch(API_URL + '/perfil', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        nombre: document.getElementById('cuenta-nombre').value.trim(),
+        empresa: document.getElementById('cuenta-empresa').value.trim(),
+        cuit: document.getElementById('cuenta-cuit').value.trim(),
+      })
+    });
+    if (!resp.ok) {
+      const json = await resp.json().catch(() => ({}));
+      el.className = 'alert error cuenta-msg-in';
+      el.textContent = json.error || 'No se pudieron guardar los datos. Probá de nuevo.';
+      return;
+    }
     const { data: perfilNuevo } = await sb.from('perfiles').select('*').eq('id', usuario.id).single();
     if (perfilNuevo) {
       perfil = perfilNuevo;
@@ -1259,6 +1269,9 @@ async function guardarCuenta() {
       el.textContent = '';
       _cuentaGuardadoTimer = null;
     }, 5000);
+  } catch (e) {
+    el.className = 'alert error cuenta-msg-in';
+    el.textContent = 'Error de red. Probá de nuevo.';
   }
 }
 
@@ -1283,13 +1296,17 @@ async function guardarCredenciales(prefix, redirigir) {
   const pjnU  = (g('pjn-usuario')?.value   || '').trim();
   const pjnP  = (g('pjn-password')?.value  || '');
 
-  if (!scbaU && !scbaP && !pjnU && !pjnP) {
+  const campos = {};
+  if (scbaU) campos.scba_usuario = scbaU;
+  if (scbaP) campos.scba_password = scbaP;
+  if (pjnU)  campos.pjn_usuario  = pjnU;
+  if (pjnP)  campos.pjn_password = pjnP;
+
+  if (!Object.keys(campos).length) {
     alertEl.className = 'alert error';
     alertEl.textContent = 'Ingresá al menos un campo para guardar.';
     return;
   }
-
-  const campos = { scba_usuario: scbaU, scba_password: scbaP, pjn_usuario: pjnU, pjn_password: pjnP };
 
   try {
     const resp = await fetch(API_URL + '/perfil/credenciales', {

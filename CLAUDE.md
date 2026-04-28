@@ -56,6 +56,7 @@ WA_INTERNO_NUM=
 ADMIN_TOKEN=
 TURNSTILE_SITE_KEY=       # Cloudflare Turnstile (optional)
 TURNSTILE_SECRET_KEY=
+OPENAI_API_KEY=           # Whisper audio transcription for PJN captcha (optional, falls back to OCR)
 ```
 
 ## Architecture & Data Flow
