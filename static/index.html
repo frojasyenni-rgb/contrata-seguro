@@ -399,6 +399,7 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
       <button class="tab active" onclick="switchTab(this,'tab-historial')">Mis consultas</button>
       <button class="tab" onclick="switchTab(this,'tab-planes');actualizarPlanBanner()">Planes</button>
       <button class="tab" onclick="switchTab(this,'tab-cuenta')">Mi cuenta</button>
+      <button class="tab" onclick="switchTab(this,'tab-credenciales')">Mis credenciales</button>
     </div>
 
     <!-- TAB HISTORIAL -->
@@ -480,11 +481,14 @@ header{background:var(--azul);padding:14px 28px;display:flex;align-items:center;
         <div class="field"><label>CUIT</label><input type="text" id="cuenta-cuit" placeholder="20-12345678-9"></div>
         <div class="field"><label>Email</label><input type="email" id="cuenta-email" disabled style="opacity:0.6"></div>
         <button class="btn btn-primary" onclick="guardarCuenta()" style="width:auto;padding:10px 24px">Guardar cambios</button>
+      </div>
+    </div>
 
-        <hr style="border:none;border-top:1px solid var(--gris-200);margin:20px 0">
-
-        <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--azul);margin-bottom:6px">Credenciales para consultas</div>
-        <p style="font-size:13px;color:var(--gris-500);margin-bottom:14px">Ingresá tus usuarios y contraseñas de SCBA y PJN. Se usan para hacer las búsquedas en tu nombre.</p>
+    <!-- TAB CREDENCIALES -->
+    <div id="tab-credenciales" style="display:none">
+      <div class="card">
+        <div class="card-title">Mis credenciales</div>
+        <p style="font-size:13px;color:var(--gris-500);margin-bottom:16px">Ingresá tus usuarios y contraseñas de SCBA y PJN. Se usan para hacer las búsquedas en tu nombre.</p>
         <div class="alert" id="cred-alert" role="status" aria-live="polite"></div>
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -850,10 +854,11 @@ function toggleModal(tipo) {
 function switchTab(btn, tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  ['tab-historial','tab-planes','tab-cuenta'].forEach(t => {
+  ['tab-historial','tab-planes','tab-cuenta','tab-credenciales'].forEach(t => {
     document.getElementById(t).style.display = t === tabId ? 'block' : 'none';
   });
   if (tabId === 'tab-cuenta') cargarCuenta();
+  if (tabId === 'tab-credenciales') cargarEstadoCredenciales();
 }
 
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
