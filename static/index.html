@@ -851,6 +851,14 @@ function toggleModal(tipo) {
   document.getElementById('modal-registro').style.display = tipo === 'registro' ? 'block' : 'none';
 }
 
+function irACredenciales() {
+  showPage('panel');
+  setTimeout(() => {
+    const btn = document.querySelector('.tab[onclick*="tab-credenciales"]');
+    if (btn) btn.click();
+  }, 150);
+}
+
 function switchTab(btn, tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
@@ -977,6 +985,14 @@ async function iniciarBusqueda() {
   const creditos = perfil.creditos || 0;
   if (plan !== 'profesional' && !perfil.suscripcion_activa && creditos <= 0) {
     if (confirm('No ten\u00e9s cr\u00e9ditos disponibles. \u00bfQuer\u00e9s ver los planes?')) showPage('panel', { initialTab: 'planes' });
+    return;
+  }
+  if (!perfil.scba_usuario || !perfil.scba_password) {
+    const el = document.getElementById('buscar-error');
+    el.innerHTML = '\u26a0\ufe0f Para buscar necesit\u00e1s configurar tus credenciales de SCBA. '
+      + '<button class="btn btn-secondary btn-sm" style="width:auto;padding:4px 14px;margin-left:8px" '
+      + 'onclick="irACredenciales()">Configurar credenciales \u2192</button>';
+    el.style.display = 'block';
     return;
   }
   document.getElementById('btn-buscar').disabled = true;
