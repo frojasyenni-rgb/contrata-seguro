@@ -566,6 +566,10 @@ def parsear_causas(html, depto, tribunal, gam):
     return causas
 
 def buscar_scba():
+    if not SCBA_USUARIO or not SCBA_PASSWORD:
+        log.warning("SCBA: credenciales no configuradas para este usuario; configure usuario y contraseña en Mis credenciales")
+        progreso(2, "SCBA sin credenciales", "Configurá tus credenciales en Mis credenciales")
+        return []
     progreso(2, "SCBA -- Iniciando sesion...", "Provincia de Buenos Aires")
     log.info("SCBA: iniciando sesion y recorrido de %s juzgados", TOTAL)
     s = requests.Session()

@@ -313,10 +313,12 @@ def correr_scraper_stream(nombre, q, cuil=None, caratula="apellido", pjn_session
         )
         # stderr del hijo al stderr del proceso Flask/Gunicorn: logs en tiempo real (Railway, local).
         env_sub = dict(os.environ)
-        if scba_usuario: env_sub["SCBA_USUARIO"] = scba_usuario
-        if scba_password: env_sub["SCBA_PASSWORD"] = scba_password
-        if pjn_usuario:  env_sub["PJN_USUARIO"]  = pjn_usuario
-        if pjn_password: env_sub["PJN_PASSWORD"]  = pjn_password
+        # Siempre pisa las credenciales con las del usuario (aunque estén vacías) para que
+        # las variables globales de Railway no se filtren a búsquedas de otros usuarios.
+        env_sub["SCBA_USUARIO"] = scba_usuario or ""
+        env_sub["SCBA_PASSWORD"] = scba_password or ""
+        env_sub["PJN_USUARIO"]  = pjn_usuario or ""
+        env_sub["PJN_PASSWORD"] = pjn_password or ""
         proc = subprocess.Popen(
             argv,
             stdout=subprocess.PIPE,
@@ -745,10 +747,10 @@ def buscar():
         except: pass
     try:
         env_sub2 = dict(os.environ)
-        if _pcred2.get("scba_usuario"): env_sub2["SCBA_USUARIO"] = _pcred2["scba_usuario"]
-        if _pcred2.get("scba_password"): env_sub2["SCBA_PASSWORD"] = _pcred2["scba_password"]
-        if _pcred2.get("pjn_usuario"):  env_sub2["PJN_USUARIO"]  = _pcred2["pjn_usuario"]
-        if _pcred2.get("pjn_password"): env_sub2["PJN_PASSWORD"]  = _pcred2["pjn_password"]
+        env_sub2["SCBA_USUARIO"] = _pcred2.get("scba_usuario") or ""
+        env_sub2["SCBA_PASSWORD"] = _pcred2.get("scba_password") or ""
+        env_sub2["PJN_USUARIO"]  = _pcred2.get("pjn_usuario") or ""
+        env_sub2["PJN_PASSWORD"] = _pcred2.get("pjn_password") or ""
         argv=_argv_buscar_simple(nombre,cuil=cuil,caratula=caratula)
         result=subprocess.run(argv,
                               capture_output=True,text=True,timeout=300,
