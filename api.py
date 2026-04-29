@@ -378,6 +378,7 @@ def index():
         mimetype="text/html; charset=utf-8",
     )
     resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    resp.headers["Cache-Control"] = "no-cache, must-revalidate"
     return resp
 
 
