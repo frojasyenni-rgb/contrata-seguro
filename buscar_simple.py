@@ -2,7 +2,7 @@
 """CONTRATA SEGURO - v3.5 - SCBA MEV: login usuario/clave + selección DtoJudElegido en POSLoguin"""
 import argparse
 import requests, os, unicodedata
-from bs4 import BeautifulSouph
+from bs4 import BeautifulSoup
 import json, time, sys, re, logging
 from typing import Optional
 from urllib.parse import urljoin
